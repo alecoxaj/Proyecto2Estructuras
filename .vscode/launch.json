@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Proyecto2Estructuras",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build Proyecto2Estructuras",
+            "program": "${workspaceFolder}/bin/Debug/net10.0/Proyecto2Estructuras.dll",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        }
+    ]
+}

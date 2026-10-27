@@ -1,11 +1,11 @@
 using System;
 
-namespace RedTransporteUrbano.Modelos
+namespace Proyecto2Estructuras.Modelos
 {
     // Representa una parada dentro de la red de transporte urbano.
     public class Parada
     {
-        // Código único que identifica a la parada.
+        // Código único que identifica la parada.
         public string Codigo;
 
         // Nombre de la parada.
@@ -17,7 +17,7 @@ namespace RedTransporteUrbano.Modelos
         // Coordenada geográfica de longitud.
         public double Longitud;
 
-        // Constructor que recibe todos los datos necesarios de una parada.
+        // Constructor de la clase Parada.
         public Parada(string codigo, string nombre, double latitud, double longitud)
         {
             Codigo = codigo;
@@ -26,7 +26,7 @@ namespace RedTransporteUrbano.Modelos
             Longitud = longitud;
         }
 
-        // Muestra en consola toda la información de la parada.
+        // Muestra los datos de la parada.
         public void Mostrar()
         {
             Console.WriteLine($"Código: {Codigo}");
