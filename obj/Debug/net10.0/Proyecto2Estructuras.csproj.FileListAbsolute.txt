@@ -1,0 +1,15 @@
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.exe
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.deps.json
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.runtimeconfig.json
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.pdb
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.AssemblyInfoInputs.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.AssemblyInfo.cs
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.csproj.CoreCompileInputs.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.sourcelink.json
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\refint\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.pdb
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.genruntimeconfig.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\ref\Proyecto2Estructuras.dll
