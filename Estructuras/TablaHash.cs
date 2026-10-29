@@ -4,30 +4,38 @@ using Proyecto2Estructuras.Modelos;
 namespace Proyecto2Estructuras.Estructuras
 {
     // Tabla Hash utilizada para almacenar y localizar paradas
-    // mediante su código único.
+    // de la red de transporte urbano mediante su código único.
+    // Utiliza direccionamiento abierto con sondeo lineal.
     public class TablaHash
     {
-        // Arreglo donde se almacenan las paradas.
-        // Se utiliza ? porque una posición puede estar vacía.
+        // Arreglo que almacena las paradas.
+        // Una posición puede contener null si está vacía.
         private Parada?[] tabla;
 
-        // Indica si una posición fue eliminada anteriormente.
-        // Esto permite continuar correctamente las búsquedas
-        // cuando existen colisiones.
+        // Identifica las posiciones que fueron eliminadas.
+        // Permite continuar las búsquedas después de una eliminación.
         private bool[] eliminados;
 
-        // Tamaño total de la Tabla Hash.
+        // Capacidad total de la Tabla Hash.
         private int capacidad;
 
-        // Cantidad actual de paradas almacenadas.
+        // Cantidad de paradas almacenadas actualmente.
         private int cantidad;
 
         // Constructor de la Tabla Hash.
         public TablaHash(int capacidad)
         {
+            // Verifica que la capacidad sea válida.
+            if (capacidad <= 0)
+            {
+                throw new ArgumentException(
+                    "La capacidad debe ser mayor que cero."
+                );
+            }
+
             this.capacidad = capacidad;
 
-            // Al iniciar, todas las posiciones están vacías.
+            // Inicializa los arreglos de la estructura.
             tabla = new Parada?[capacidad];
             eliminados = new bool[capacidad];
 
@@ -41,7 +49,7 @@ namespace Proyecto2Estructuras.Estructuras
         {
             int hash = 0;
 
-            // Se recorren todos los caracteres del código.
+            // Recorre todos los caracteres del código.
             for (int i = 0; i < codigo.Length; i++)
             {
                 hash = (hash * 31 + codigo[i]) % capacidad;
@@ -53,33 +61,35 @@ namespace Proyecto2Estructuras.Estructuras
         // Inserta una nueva parada en la Tabla Hash.
         public bool Insertar(Parada parada)
         {
-            // Primero se verifica que el código no esté repetido.
+            // Verifica que el código no esté repetido.
             if (Buscar(parada.Codigo) != null)
             {
-                Console.WriteLine("Ya existe una parada con ese código.");
+                Console.WriteLine(
+                    "Ya existe una parada con ese código."
+                );
                 return false;
             }
 
-            // Verifica si la tabla está completamente llena.
+            // Comprueba si la tabla está completamente llena.
             if (cantidad == capacidad)
             {
                 Console.WriteLine("La Tabla Hash está llena.");
                 return false;
             }
 
-            // Se obtiene la posición inicial mediante la función Hash.
+            // Calcula la posición inicial mediante la función Hash.
             int indice = FuncionHash(parada.Codigo);
             int indiceInicial = indice;
 
-            // Se utiliza sondeo lineal para resolver colisiones.
+            // Utiliza sondeo lineal para resolver colisiones.
             do
             {
-                // Si la posición está disponible, se almacena la parada.
+                // Si la posición está disponible, inserta la parada.
                 if (tabla[indice] == null)
                 {
                     tabla[indice] = parada;
 
-                    // La posición queda nuevamente activa.
+                    // Marca la posición como activa nuevamente.
                     eliminados[indice] = false;
 
                     cantidad++;
@@ -87,8 +97,7 @@ namespace Proyecto2Estructuras.Estructuras
                     return true;
                 }
 
-                // Si la posición está ocupada,
-                // se avanza a la siguiente.
+                // Si está ocupada, avanza a la siguiente posición.
                 indice = (indice + 1) % capacidad;
 
             } while (indice != indiceInicial);
@@ -97,24 +106,23 @@ namespace Proyecto2Estructuras.Estructuras
         }
 
         // Busca una parada utilizando su código único.
-        // Puede devolver null si la parada no existe.
+        // Devuelve null cuando la parada no existe.
         public Parada? Buscar(string codigo)
         {
-            // Se calcula la posición inicial.
+            // Calcula la posición inicial.
             int indice = FuncionHash(codigo);
             int indiceInicial = indice;
 
             do
             {
-                // Si la posición está vacía y nunca fue eliminada,
-                // significa que la parada no existe.
+                // Si la posición nunca fue utilizada,
+                // la parada no existe en la tabla.
                 if (tabla[indice] == null && !eliminados[indice])
                 {
                     return null;
                 }
 
-                // Si existe una parada en la posición,
-                // se compara su código.
+                // Comprueba si el código coincide.
                 if (tabla[indice] != null &&
                     tabla[indice]!.Codigo == codigo)
                 {
@@ -132,29 +140,28 @@ namespace Proyecto2Estructuras.Estructuras
         // Elimina una parada utilizando su código único.
         public bool Eliminar(string codigo)
         {
-            // Se calcula la posición inicial.
+            // Calcula la posición inicial.
             int indice = FuncionHash(codigo);
             int indiceInicial = indice;
 
             do
             {
-                // Si encontramos una posición que nunca fue utilizada,
+                // Si encuentra una posición nunca utilizada,
                 // significa que la parada no existe.
                 if (tabla[indice] == null && !eliminados[indice])
                 {
                     return false;
                 }
 
-                // Si encontramos la parada solicitada,
-                // se elimina de la tabla.
+                // Comprueba si encontró la parada solicitada.
                 if (tabla[indice] != null &&
                     tabla[indice]!.Codigo == codigo)
                 {
+                    // Elimina la parada del arreglo.
                     tabla[indice] = null;
 
-                    // Se marca la posición como eliminada.
-                    // Esto permite que otras búsquedas continúen
-                    // en caso de que hayan ocurrido colisiones.
+                    // Marca la posición como eliminada.
+                    // Esto conserva el recorrido de futuras búsquedas.
                     eliminados[indice] = true;
 
                     cantidad--;
@@ -173,13 +180,16 @@ namespace Proyecto2Estructuras.Estructuras
         // Muestra todas las posiciones de la Tabla Hash.
         public void Mostrar()
         {
-            Console.WriteLine("\n--- TABLA HASH DE PARADAS ---");
+            Console.WriteLine(
+                "\n--- TABLA HASH DE PARADAS ---"
+            );
 
+            // Recorre todas las posiciones del arreglo.
             for (int i = 0; i < capacidad; i++)
             {
                 Console.Write($"Posición [{i}]: ");
 
-                // Si existe una parada, muestra su código y nombre.
+                // Muestra la parada si la posición está ocupada.
                 if (tabla[i] != null)
                 {
                     Console.WriteLine(
@@ -191,6 +201,32 @@ namespace Proyecto2Estructuras.Estructuras
                     Console.WriteLine("Vacía");
                 }
             }
+        }
+
+        // Obtiene todas las paradas almacenadas en la Tabla Hash.
+        // Devuelve un arreglo con los registros existentes.
+        // Este método permite integrar la Tabla Hash con Union-Find.
+        public Parada[] ObtenerParadas()
+        {
+            // Crea un arreglo con la cantidad de paradas registradas.
+            Parada[] paradas = new Parada[cantidad];
+
+            // Controla la posición del arreglo de resultados.
+            int posicion = 0;
+
+            // Recorre todas las posiciones de la Tabla Hash.
+            for (int i = 0; i < capacidad; i++)
+            {
+                // Solo agrega las posiciones que contienen paradas.
+                if (tabla[i] != null)
+                {
+                    paradas[posicion] = tabla[i]!;
+                    posicion++;
+                }
+            }
+
+            // Devuelve las paradas encontradas.
+            return paradas;
         }
     }
 }
