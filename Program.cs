@@ -1,5 +1,8 @@
-﻿using Proyecto2Estructuras.Modelos;
+﻿using System;
+using System.IO;
+using Proyecto2Estructuras.Modelos;
 using Proyecto2Estructuras.Estructuras;
+using Proyecto2Estructuras.Datos;
 
 namespace Proyecto2Estructuras
 {
@@ -7,49 +10,50 @@ namespace Proyecto2Estructuras
     {
         static void Main(string[] args)
         {
-            // Creamos una Tabla Hash con capacidad para 17 paradas.
+            // PRUEBA DE CARGA DESDE CSV
+
+            // Crea una Tabla Hash con capacidad para 17 paradas.
             TablaHash tabla = new TablaHash(17);
 
-            // Creamos algunas paradas únicamente para probar la estructura.
-            Parada parada1 = new Parada(
-                "P001",
-                "Parque Central",
-                14.8347,
-                -91.5180
+            // Obtiene la ubicación del archivo CSV.
+            string ruta = Path.Combine(
+                AppContext.BaseDirectory,
+                "Datos",
+                "paradas.csv"
             );
 
-            Parada parada2 = new Parada(
-                "P002",
-                "Terminal Minerva",
-                14.8465,
-                -91.5234
-            );
+            // Carga los registros del CSV hacia la Tabla Hash.
+            int cantidad = CargadorParadas.Cargar(ruta, tabla);
 
-            // Insertamos las paradas.
-            tabla.Insertar(parada1);
-            tabla.Insertar(parada2);
+            Console.WriteLine("\n--- CARGA DE PARADAS ---");
+            Console.WriteLine($"Paradas cargadas: {cantidad}");
 
-            // Mostramos la Tabla Hash.
+            // Muestra las paradas almacenadas en la Tabla Hash.
             tabla.Mostrar();
 
-            // Buscamos una parada por código.
-            Parada? encontrada = tabla.Buscar("P001");
+            // PRUEBA DE BÚSQUEDA
 
-            if (encontrada != null)
+            Console.Write("\nIngresa el código de una parada: ");
+            string? codigo = Console.ReadLine();
+
+            // Verifica que el usuario haya ingresado un código.
+            if (!string.IsNullOrWhiteSpace(codigo))
             {
-                Console.WriteLine("\nParada encontrada:");
-                encontrada.Mostrar();
-            }
-            else
-            {
-                Console.WriteLine("\nParada no encontrada.");
-            }
+                // Busca la parada utilizando su código.
+                Parada? encontrada = tabla.Buscar(
+                    codigo.Trim().ToUpperInvariant()
+                );
 
-            // Eliminamos una parada.
-            tabla.Eliminar("P002");
-
-            // Mostramos nuevamente la tabla.
-            tabla.Mostrar();
+                if (encontrada != null)
+                {
+                    Console.WriteLine("\nParada encontrada:");
+                    encontrada.Mostrar();
+                }
+                else
+                {
+                    Console.WriteLine("\nParada no encontrada.");
+                }
+            }
         }
     }
 }

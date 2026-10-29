@@ -13,3 +13,4 @@ C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\refint\Proyecto2Estructura
 C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.pdb
 C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.genruntimeconfig.cache
 C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\ref\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Datos\paradas.csv
