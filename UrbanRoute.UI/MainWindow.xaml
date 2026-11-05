@@ -201,12 +201,6 @@
                             Tag="Autocompletado"
                             Style="{StaticResource NavButton}"
                             Click="Navegacion_Click"/>
-
-                    <Button x:Name="BtnPruebas"
-                            Content="Pruebas Tabla Hash"
-                            Tag="Pruebas"
-                            Style="{StaticResource NavButton}"
-                            Click="Navegacion_Click"/>
                 </StackPanel>
 
                 <!-- Botón para salir del programa. -->

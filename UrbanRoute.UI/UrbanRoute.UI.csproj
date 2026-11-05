@@ -9,21 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Reutiliza las clases originales del proyecto. -->
-    <Compile Include="..\Modelos\Parada.cs"
-             Link="Compartido\Modelos\Parada.cs" />
-
-    <Compile Include="..\Estructuras\TablaHash.cs"
-             Link="Compartido\Estructuras\TablaHash.cs" />
-
-    <Compile Include="..\Datos\CargadorParadas.cs"
-             Link="Compartido\Datos\CargadorParadas.cs" />
+    <!-- Referencia al proyecto principal para tener acceso automático a TODAS las estructuras y modelos. -->
+    <ProjectReference Include="..\Proyecto2Estructuras.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Incluye el archivo CSV inicial. -->
+    <!-- Incluye los archivos CSV iniciales para que se copien al ejecutar. -->
     <None Include="..\Datos\paradas.csv"
           Link="Datos\paradas.csv"
+          CopyToOutputDirectory="PreserveNewest" />
+          
+    <None Include="..\Datos\rutas.csv"
+          Link="Datos\rutas.csv"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
