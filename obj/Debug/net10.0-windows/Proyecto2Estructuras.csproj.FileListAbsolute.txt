@@ -15,3 +15,20 @@ C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estruct
 C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.pdb
 C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.genruntimeconfig.cache
 C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0-windows\ref\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Datos\paradas.csv
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Datos\rutas.csv
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Proyecto2Estructuras.exe
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Proyecto2Estructuras.deps.json
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Proyecto2Estructuras.runtimeconfig.json
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0-windows\Proyecto2Estructuras.pdb
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.AssemblyInfoInputs.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.AssemblyInfo.cs
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.csproj.CoreCompileInputs.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.sourcelink.json
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\refint\Proyecto2Estructuras.dll
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.pdb
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\Proyecto2Estructuras.genruntimeconfig.cache
+C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0-windows\ref\Proyecto2Estructuras.dll

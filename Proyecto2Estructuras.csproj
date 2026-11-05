@@ -13,4 +13,8 @@
     <None Update="Datos/rutas.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="UrbanRoute.UI/**/*.cs" />
+</ItemGroup>
+
 </Project>

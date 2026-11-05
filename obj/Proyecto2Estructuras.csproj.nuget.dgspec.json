@@ -1,25 +1,31 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\daaba\\Desktop\\URL\\SEMESTRE IV\\Proyectos_c\\Estructuras2\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj": {}
+    "C:\\Users\\aleja\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj": {}
   },
   "projects": {
-    "C:\\Users\\daaba\\Desktop\\URL\\SEMESTRE IV\\Proyectos_c\\Estructuras2\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj": {
+    "C:\\Users\\aleja\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\daaba\\Desktop\\URL\\SEMESTRE IV\\Proyectos_c\\Estructuras2\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj",
+        "projectUniqueName": "C:\\Users\\aleja\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj",
         "projectName": "Proyecto2Estructuras",
-        "projectPath": "C:\\Users\\daaba\\Desktop\\URL\\SEMESTRE IV\\Proyectos_c\\Estructuras2\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj",
-        "packagesPath": "C:\\Users\\daaba\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\daaba\\Desktop\\URL\\SEMESTRE IV\\Proyectos_c\\Estructuras2\\Proyecto2Estructuras\\obj\\",
+        "projectPath": "C:\\Users\\aleja\\Proyecto2Estructuras\\Proyecto2Estructuras.csproj",
+        "packagesPath": "C:\\Users\\aleja\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\aleja\\Proyecto2Estructuras\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "C:\\Users\\daaba\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\aleja\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net10.0-windows"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -64,7 +70,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.400/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.403/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
