@@ -9,6 +9,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Reutiliza las clases originales del proyecto. -->
+    <Compile Include="..\Modelos\Parada.cs"
+             Link="Compartido\Modelos\Parada.cs" />
+
+    <Compile Include="..\Estructuras\TablaHash.cs"
+             Link="Compartido\Estructuras\TablaHash.cs" />
+
+    <Compile Include="..\Datos\CargadorParadas.cs"
+             Link="Compartido\Datos\CargadorParadas.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Incluye el archivo CSV inicial. -->
     <None Include="..\Datos\paradas.csv"
           Link="Datos\paradas.csv"
           CopyToOutputDirectory="PreserveNewest" />

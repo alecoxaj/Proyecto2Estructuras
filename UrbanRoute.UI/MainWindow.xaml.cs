@@ -1,31 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using UrbanRoute.UI.Views;
+using UrbanRoute.UI.Servicios;
 
 namespace UrbanRoute.UI
 {
-    // Ventana principal de la aplicación UrbanRoute.
-    // Administra la navegación y los controles del dashboard.
+    // Ventana principal de UrbanRoute.
+    // Administra el dashboard, la navegación lateral
+    // y las pantallas de las estructuras de datos.
     public partial class MainWindow : Window
     {
         // Guarda el criterio seleccionado para calcular rutas.
         private string criterioActual = "Tiempo";
+
+        // Conserva la instancia de la pantalla de paradas.
+        private ParadasPage? paginaParadas;
 
         // Constructor de la ventana principal.
         public MainWindow()
         {
             InitializeComponent();
 
-            // Carga las paradas existentes al iniciar la aplicación.
+            // Carga las paradas del CSV al iniciar.
             CargarParadasDesdeCsv();
         }
 
-        // Clase auxiliar para representar una parada
-        // dentro de los selectores de la interfaz.
+        // Clase auxiliar para mostrar paradas en los selectores.
         private sealed class ParadaItem
         {
             public string Codigo { get; }
@@ -37,86 +41,98 @@ namespace UrbanRoute.UI
                 Nombre = nombre;
             }
 
-            // Muestra el código y el nombre de la parada.
+            // Devuelve el texto visible en los ComboBox.
             public override string ToString()
             {
                 return $"{Codigo} - {Nombre}";
             }
         }
 
-        // Lee las paradas del archivo CSV.
-        // Se utiliza únicamente para mostrar información
-        // en el dashboard, sin modificar las estructuras.
+        // CARGA DE PARADAS DESDE CSV
+    
+
+        // Lee los registros y actualiza el dashboard.
         private void CargarParadasDesdeCsv()
         {
-            string ruta = Path.Combine(
-                AppContext.BaseDirectory,
-                "Datos",
-                "paradas.csv"
-            );
-
-            // Verifica que el archivo CSV exista.
-            if (!File.Exists(ruta))
-            {
-                TxtCantidadParadas.Text = "—";
-
-                TxtResultado.Text =
-                    "No se encontró el archivo Datos/paradas.csv.";
-
-                return;
-            }
-
             try
             {
-                // Lista auxiliar para los controles gráficos.
-                List<ParadaItem> paradas = new List<ParadaItem>();
+                // Obtiene la misma ruta utilizada por ParadasPage.
+                string ruta = ArchivoParadas.ObtenerRuta();
 
-                // Recorre el archivo omitiendo el encabezado.
-                foreach (string linea in File.ReadLines(ruta).Skip(1))
+                // Comprueba que el archivo exista.
+                if (!File.Exists(ruta))
                 {
+                    TxtCantidadParadas.Text = "0";
+
+                    TxtResultado.Text =
+                        "No se encontró el archivo paradas.csv.";
+
+                    return;
+                }
+
+                // Lista auxiliar utilizada por los controles visuales.
+                List<ParadaItem> paradas =
+                    new List<ParadaItem>();
+
+                bool encabezado = true;
+
+                // Recorre las líneas del archivo CSV.
+                foreach (string linea in File.ReadLines(ruta))
+                {
+                    // Omite la primera línea correspondiente
+                    // al encabezado del archivo.
+                    if (encabezado)
+                    {
+                        encabezado = false;
+                        continue;
+                    }
+
                     // Ignora las líneas vacías.
                     if (string.IsNullOrWhiteSpace(linea))
                     {
                         continue;
                     }
 
-                    // Separa los campos del CSV.
+                    // Separa los campos del registro.
                     string[] campos = linea.Split(',');
 
-                    // Verifica que existan cuatro campos.
+                    // Verifica que tenga cuatro campos.
                     if (campos.Length != 4)
                     {
                         continue;
                     }
 
-                    // Obtiene el código y nombre de la parada.
                     string codigo = campos[0].Trim();
                     string nombre = campos[1].Trim();
 
-                    // Agrega los registros válidos.
-                    if (codigo.Length > 0 && nombre.Length > 0)
+                    // Comprueba que el código y nombre existan.
+                    if (codigo.Length == 0 || nombre.Length == 0)
                     {
-                        paradas.Add(
-                            new ParadaItem(codigo, nombre)
-                        );
+                        continue;
                     }
+
+                    // Agrega la parada a la lista de la interfaz.
+                    paradas.Add(
+                        new ParadaItem(codigo, nombre)
+                    );
                 }
 
-                // Muestra la cantidad de paradas registradas.
-                TxtCantidadParadas.Text = paradas.Count.ToString();
+                // Actualiza el contador del dashboard.
+                TxtCantidadParadas.Text =
+                    paradas.Count.ToString();
 
-                // Limpia los selectores antes de cargar registros.
+                // Limpia los selectores antes de actualizarlos.
                 CmbOrigen.Items.Clear();
                 CmbDestino.Items.Clear();
 
-                // Agrega las paradas a ambos selectores.
+                // Agrega las paradas de origen y destino.
                 foreach (ParadaItem parada in paradas)
                 {
                     CmbOrigen.Items.Add(parada);
                     CmbDestino.Items.Add(parada);
                 }
 
-                // Selecciona las primeras paradas disponibles.
+                // Selecciona las primeras opciones disponibles.
                 if (paradas.Count > 0)
                 {
                     CmbOrigen.SelectedIndex = 0;
@@ -126,31 +142,35 @@ namespace UrbanRoute.UI
                 {
                     CmbDestino.SelectedIndex = 1;
                 }
+
+                TxtResultado.Text = "Resultado: pendiente";
             }
-            catch (IOException error)
+            catch (Exception error) when (
+                error is IOException ||
+                error is UnauthorizedAccessException)
             {
+                TxtCantidadParadas.Text = "—";
+
                 TxtResultado.Text =
-                    $"Error al leer el CSV: {error.Message}";
-            }
-            catch (UnauthorizedAccessException error)
-            {
-                TxtResultado.Text =
-                    $"Acceso al CSV denegado: {error.Message}";
+                    $"Error al cargar paradas: {error.Message}";
             }
         }
 
-        // Administra la navegación del menú lateral.
-        // Muestra la sección seleccionada sin abrir otra ventana.
+        // NAVEGACIÓN DEL MENÚ LATERAL
+    
+
+        // Cambia la pantalla según el botón seleccionado.
         private void Navegacion_Click(
             object sender,
             RoutedEventArgs e)
         {
+            // Identifica el botón que recibió el clic.
             if (sender is not Button seleccionado)
             {
                 return;
             }
 
-            // Botones que forman parte del menú lateral.
+            // Botones de navegación de UrbanRoute.
             Button[] botones =
             {
                 BtnInicio,
@@ -162,7 +182,7 @@ namespace UrbanRoute.UI
                 BtnPruebas
             };
 
-            // Restablece los colores de los botones.
+            // Restablece el estilo de los botones.
             foreach (Button boton in botones)
             {
                 boton.Background = Brushes.Transparent;
@@ -171,83 +191,140 @@ namespace UrbanRoute.UI
                     new SolidColorBrush(
                         Color.FromRgb(201, 214, 231)
                     );
+
+                boton.FontWeight = FontWeights.Normal;
             }
 
-            // Resalta la opción seleccionada.
+            // Resalta el botón seleccionado.
             seleccionado.Background =
                 new SolidColorBrush(
                     Color.FromRgb(34, 66, 115)
                 );
 
             seleccionado.Foreground = Brushes.White;
+            seleccionado.FontWeight = FontWeights.SemiBold;
 
             // Obtiene la sección seleccionada.
             string seccion =
                 seleccionado.Tag?.ToString() ?? "Inicio";
 
-            bool esInicio = seccion == "Inicio";
 
-            // Alterna entre el dashboard y las otras secciones.
-            DashboardView.Visibility = esInicio
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            // VISTA GENERAL
+        
 
-            SeccionView.Visibility = esInicio
-                ? Visibility.Collapsed
-                : Visibility.Visible;
+            if (seccion == "Inicio")
+            {
+                // Muestra el dashboard principal.
+                DashboardView.Visibility = Visibility.Visible;
 
-            // Cambia el título según la opción seleccionada.
+                // Oculta el contenido de las demás páginas.
+                SeccionView.Visibility = Visibility.Collapsed;
+
+                // Actualiza la cantidad de paradas.
+                CargarParadasDesdeCsv();
+
+                return;
+            }
+
+            // Oculta la vista general y muestra las secciones.
+            DashboardView.Visibility = Visibility.Collapsed;
+            SeccionView.Visibility = Visibility.Visible;
+
+            // ADMINISTRACIÓN DE PARADAS
+           
+
+            if (seccion == "Paradas")
+            {
+                // Crea la pantalla solamente la primera vez.
+                if (paginaParadas == null)
+                {
+                    paginaParadas = new ParadasPage();
+
+                    // Cuando se agrega o elimina una parada,
+                    // actualiza el dashboard principal.
+                    paginaParadas.ParadasActualizadas +=
+                        CargarParadasDesdeCsv;
+
+                    // Coloca la pantalla dentro del contenedor.
+                    ContenidoParadas.Content = paginaParadas;
+                }
+
+                // Recarga los registros desde el CSV.
+                paginaParadas.Recargar();
+
+                // Muestra la pantalla de administración.
+                ContenidoParadas.Visibility = Visibility.Visible;
+
+                // Oculta la pantalla provisional.
+                VistaPendiente.Visibility = Visibility.Collapsed;
+
+                return;
+            }
+
+
+            // OTRAS SECCIONES DEL SISTEMA
+         
+
+            // Oculta la pantalla de paradas.
+            ContenidoParadas.Visibility = Visibility.Collapsed;
+
+            // Muestra el contenido provisional.
+            VistaPendiente.Visibility = Visibility.Visible;
+
+            // Establece el título de la sección seleccionada.
             TxtSeccionTitulo.Text = seccion switch
             {
-                "Paradas" => "Administración de paradas",
+                "Conexiones" =>
+                    "Conexiones y conectividad",
 
-                "Conexiones" => "Conexiones y conectividad",
+                "Recorridos" =>
+                    "Recorridos BFS y DFS",
 
-                "Recorridos" => "Recorridos BFS y DFS",
+                "Rutas" =>
+                    "Cálculo de rutas con Dijkstra",
 
-                "Rutas" => "Cálculo de rutas con Dijkstra",
+                "Autocompletado" =>
+                    "Autocompletado de paradas",
 
-                "Autocompletado" => "Autocompletado de paradas",
+                "Pruebas" =>
+                    "Pruebas de Tabla Hash",
 
-                "Pruebas" => "Pruebas de Tabla Hash",
-
-                _ => "Panel de control"
+                _ =>
+                    "Panel de control"
             };
 
-            // Muestra una descripción de cada funcionalidad.
+            // Muestra la descripción de la funcionalidad.
             TxtSeccionDescripcion.Text = seccion switch
             {
-                "Paradas" =>
-                    "Aquí aparecerán las paradas, las búsquedas " +
-                    "y las operaciones de la Tabla Hash.",
-
                 "Conexiones" =>
                     "Aquí aparecerán las conexiones del Grafo " +
-                    "y las consultas de Union-Find.",
+                    "y las consultas de conectividad con Union-Find.",
 
                 "Recorridos" =>
                     "Aquí se visualizarán los recorridos BFS " +
                     "y DFS sobre el Grafo.",
 
                 "Rutas" =>
-                    "Aquí se calcularán rutas mediante Dijkstra " +
-                    "utilizando tiempo o costo.",
+                    "Aquí se calcularán las rutas más rápidas " +
+                    "o económicas utilizando Dijkstra.",
 
                 "Autocompletado" =>
-                    "Aquí se mostrarán las sugerencias de " +
-                    "nombres de paradas mediante Trie.",
+                    "Aquí se mostrarán sugerencias de nombres " +
+                    "de paradas mediante Trie.",
 
                 "Pruebas" =>
-                    "Aquí se ejecutarán las pruebas de " +
-                    "colisiones, duplicados y eliminaciones.",
+                    "Aquí se ejecutarán las pruebas especiales " +
+                    "de inserción, colisiones y eliminación.",
 
                 _ =>
-                    "Gestión y visualización de la red " +
-                    "de transporte urbano."
+                    "Gestión de la red de transporte urbano."
             };
         }
 
-        // Permite seleccionar el criterio de optimización.
+        // CRITERIO DE OPTIMIZACIÓN
+    
+
+        // Cambia entre tiempo y costo.
         private void Criterio_Click(
             object sender,
             RoutedEventArgs e)
@@ -257,44 +334,57 @@ namespace UrbanRoute.UI
                 return;
             }
 
-            // Identifica si se seleccionó Tiempo o Costo.
             criterioActual =
                 boton.Tag?.ToString() == "Costo"
                     ? "Costo"
                     : "Tiempo";
 
-            // Resalta el botón Tiempo cuando está seleccionado.
-            BtnTiempo.Background = new SolidColorBrush(
-                criterioActual == "Tiempo"
-                    ? Color.FromRgb(40, 101, 232)
-                    : Color.FromRgb(41, 57, 79)
-            );
+            // Color del botón Tiempo.
+            BtnTiempo.Background =
+                new SolidColorBrush(
+                    criterioActual == "Tiempo"
+                        ? Color.FromRgb(40, 101, 232)
+                        : Color.FromRgb(41, 57, 79)
+                );
 
-            // Resalta el botón Costo cuando está seleccionado.
-            BtnCosto.Background = new SolidColorBrush(
-                criterioActual == "Costo"
-                    ? Color.FromRgb(40, 101, 232)
-                    : Color.FromRgb(41, 57, 79)
-            );
+            // Color del botón Costo.
+            BtnCosto.Background =
+                new SolidColorBrush(
+                    criterioActual == "Costo"
+                        ? Color.FromRgb(40, 101, 232)
+                        : Color.FromRgb(41, 57, 79)
+                );
         }
 
-        // Valida los controles de cálculo de rutas.
-        // Posteriormente se integrará con Dijkstra.
+        // CÁLCULO DE RUTAS
+        
+
+        // Valida las selecciones antes de calcular una ruta.
+        // La integración con Dijkstra se realizará después.
         private void CalcularRuta_Click(
             object sender,
             RoutedEventArgs e)
         {
-            // Verifica que se hayan seleccionado ambas paradas.
-            if (CmbOrigen.SelectedItem is not ParadaItem origen ||
-                CmbDestino.SelectedItem is not ParadaItem destino)
+            // Comprueba que exista una parada de origen.
+            if (CmbOrigen.SelectedItem is not ParadaItem origen)
             {
                 TxtResultado.Text =
-                    "Selecciona una parada de origen y otra de destino.";
+                    "Selecciona una parada de origen.";
 
                 return;
             }
 
-            // Verifica que origen y destino sean diferentes.
+            // Comprueba que exista una parada de destino.
+            if (CmbDestino.SelectedItem is not ParadaItem destino)
+            {
+                TxtResultado.Text =
+                    "Selecciona una parada de destino.";
+
+                return;
+            }
+
+            // Evita utilizar la misma parada como
+            // origen y destino en esta pantalla.
             if (origen.Codigo == destino.Codigo)
             {
                 TxtResultado.Text =
@@ -303,14 +393,18 @@ namespace UrbanRoute.UI
                 return;
             }
 
-            // La integración real con Dijkstra está pendiente.
+            // Mensaje provisional hasta conectar Dijkstra.
             TxtResultado.Text =
                 $"Pendiente: conectar Dijkstra por " +
-                $"{criterioActual.ToLowerInvariant()} para " +
-                $"{origen.Codigo} → {destino.Codigo}.";
+                $"{criterioActual.ToLowerInvariant()} entre " +
+                $"{origen.Codigo} y {destino.Codigo}.";
         }
 
-        // Cierra la aplicación al seleccionar Salir.
+       
+        // SALIR DE LA APLICACIÓN
+      
+
+        // Cierra la ventana principal.
         private void Salir_Click(
             object sender,
             RoutedEventArgs e)
@@ -319,5 +413,3 @@ namespace UrbanRoute.UI
         }
     }
 }
-
-
