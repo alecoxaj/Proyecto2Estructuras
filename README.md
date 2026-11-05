@@ -59,6 +59,8 @@ El código está dividido bajo el principio de responsabilidad única en dos pro
 Si actualizas el código a través de Git (pull/merge) y el compilador lanza errores de caché (`CS0246`), asegúrate de limpiar los rastros de compilaciones anteriores:
 1. Elimina manualmente las carpetas `bin` y `obj`.
 2. Ejecuta `dotnet clean` en tu terminal antes de volver a compilar.
+3. La interfaz principal se encuentra en MainWindow.xaml.cs, mientras que form1 existe por precaucion y pruebas rápidas
+
 
 ---
 *Desarrollado como proyecto de Estructuras de Datos.*
