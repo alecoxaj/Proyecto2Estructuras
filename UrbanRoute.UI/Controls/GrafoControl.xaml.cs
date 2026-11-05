@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using UrbanRoute.UI.Servicios;
 
+using Path = System.IO.Path;
 namespace UrbanRoute.UI.Controls
 {
     // Visualizador dinámico de la red de transporte.

@@ -1,46 +1,48 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input; // Requerido para Cursors.Hand
+using System.Windows.Input;
 using System.Windows.Media;
-using UrbanRoute.UI.Views;
-using UrbanRoute.UI.Servicios;
-
-// Namespaces de tu backend
-using Proyecto2Estructuras.Modelos;
-using Proyecto2Estructuras.Estructuras;
 using Proyecto2Estructuras.Datos;
+using Proyecto2Estructuras.Estructuras;
+using Proyecto2Estructuras.Modelos;
+using UrbanRoute.UI.Servicios;
+using UrbanRoute.UI.Views;
 
 namespace UrbanRoute.UI
 {
+    // Ventana principal de UrbanRoute.
+    // Integra las estructuras de datos con la interfaz WPF.
     public partial class MainWindow : Window
     {
+        // Criterio seleccionado para Dijkstra.
         private string criterioActual = "Tiempo";
+
+        // Pantalla de administración de paradas.
         private ParadasPage? paginaParadas;
 
-        // ====================================================================
-        // ESTRUCTURAS DE DATOS (Backend)
-        // ====================================================================
-        private TablaHash tabla;
-        private Grafo grafo;
+        // Estructuras principales del proyecto.
+        private TablaHash tabla = new TablaHash(67);
+        private Grafo grafo = new Grafo();
         private AlgoritmosGrafo? algoritmos;
         private ConectividadParadas? conectividad;
-        private TrieParadas trie;
+        private TrieParadas trie = new TrieParadas();
 
+        // Constructor de la ventana.
         public MainWindow()
         {
             InitializeComponent();
 
-            // AUMENTAMOS LA TABLA HASH A 47 PARA SOPORTAR LAS 30 PARADAS
-            tabla = new TablaHash(47);
-            grafo = new Grafo();
-            trie = new TrieParadas();
-
+            // Carga los datos al iniciar UrbanRoute.
             CargarParadasDesdeCsv();
         }
 
+        // Clase auxiliar para los selectores de paradas.
         private sealed class ParadaItem
         {
             public string Codigo { get; }
@@ -58,439 +60,1186 @@ namespace UrbanRoute.UI
             }
         }
 
-        // ====================================================================
-        // CARGA DE DATOS
-        // ====================================================================
+        // ========================================
+        // CARGA DE PARADAS Y RUTAS
+        // ========================================
+
         private void CargarParadasDesdeCsv()
         {
             try
             {
+                // Obtiene la ruta del CSV de paradas.
                 string rutaParadas = ArchivoParadas.ObtenerRuta();
 
                 if (!File.Exists(rutaParadas))
                 {
                     TxtCantidadParadas.Text = "0";
-                    TxtResultado.Text = "No se encontró el archivo paradas.csv.";
+                    TxtResultado.Text =
+                        "No se encontró paradas.csv.";
                     return;
                 }
 
-                // 1. CARGA EN ESTRUCTURAS BACKEND (TAMAÑO 47)
-                tabla = new TablaHash(47); 
-                CargadorParadas.Cargar(rutaParadas, tabla);
-                
-                Parada[] paradasCargadas = tabla.ObtenerParadas();
+                // Calcula la capacidad según los registros.
+                // Admite los 30 registros obligatorios.
+                int registros = File.ReadLines(rutaParadas)
+                    .Skip(1)
+                    .Count(linea =>
+                        !string.IsNullOrWhiteSpace(linea));
 
-                conectividad = new ConectividadParadas(paradasCargadas);
+                int capacidad = Math.Max(
+                    67,
+                    registros * 2 + 1
+                );
+
+                // Reconstruye la Tabla Hash.
+                tabla = new TablaHash(capacidad);
+
+                CargadorParadas.Cargar(
+                    rutaParadas,
+                    tabla
+                );
+
+                // Obtiene las paradas almacenadas.
+                Parada[] paradasCargadas =
+                    tabla.ObtenerParadas();
+
+                // Inicializa las demás estructuras.
+                conectividad =
+                    new ConectividadParadas(paradasCargadas);
+
                 grafo = new Grafo(paradasCargadas);
+
                 algoritmos = new AlgoritmosGrafo(grafo);
+
                 trie = new TrieParadas();
                 trie.CargarParadas(paradasCargadas);
 
-                string directorioBase = Path.GetDirectoryName(rutaParadas) ?? "";
-                string rutaRutas = Path.Combine(directorioBase, "rutas.csv");
+                // Busca el archivo de rutas.
+                string carpeta = Path.GetDirectoryName(
+                    rutaParadas
+                ) ?? "";
+
+                string rutaRutas = Path.Combine(
+                    carpeta,
+                    "rutas.csv"
+                );
+
+                // Utiliza la copia de salida si es necesario.
+                if (!File.Exists(rutaRutas))
+                {
+                    rutaRutas = Path.Combine(
+                        AppContext.BaseDirectory,
+                        "Datos",
+                        "rutas.csv"
+                    );
+                }
+
+                // Carga las conexiones del Grafo.
                 if (File.Exists(rutaRutas))
                 {
-                    CargadorRutas.Cargar(rutaRutas, grafo, conectividad);
+                    CargadorRutas.Cargar(
+                        rutaRutas,
+                        grafo,
+                        conectividad
+                    );
                 }
 
-                // 2. ACTUALIZACIÓN DEL DASHBOARD
-                List<ParadaItem> paradasUI = new List<ParadaItem>();
-                foreach (Parada p in paradasCargadas)
-                {
-                    paradasUI.Add(new ParadaItem(p.Codigo, p.Nombre));
-                }
+                // Actualiza el contador.
+                TxtCantidadParadas.Text =
+                    paradasCargadas.Length.ToString();
 
-                TxtCantidadParadas.Text = paradasUI.Count.ToString();
-
+                // Prepara las opciones de origen y destino.
                 CmbOrigen.Items.Clear();
                 CmbDestino.Items.Clear();
 
-                foreach (ParadaItem parada in paradasUI)
+                // Ordena las paradas por código.
+                Array.Sort(
+                    paradasCargadas,
+                    (a, b) => string.Compare(
+                        a.Codigo,
+                        b.Codigo,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+
+                foreach (Parada parada in paradasCargadas)
                 {
-                    CmbOrigen.Items.Add(parada);
-                    CmbDestino.Items.Add(parada);
+                    ParadaItem item = new ParadaItem(
+                        parada.Codigo,
+                        parada.Nombre
+                    );
+
+                    CmbOrigen.Items.Add(item);
+                    CmbDestino.Items.Add(item);
                 }
 
-                if (paradasUI.Count > 0) CmbOrigen.SelectedIndex = 0;
-                if (paradasUI.Count > 1) CmbDestino.SelectedIndex = 1;
+                if (paradasCargadas.Length > 0)
+                    CmbOrigen.SelectedIndex = 0;
 
-                TxtResultado.Text = "Resultado: pendiente";
+                if (paradasCargadas.Length > 1)
+                    CmbDestino.SelectedIndex = 1;
+
+                TxtResultado.Text = File.Exists(rutaRutas)
+                    ? "Resultado: pendiente"
+                    : "No se encontró rutas.csv.";
+
+                // Actualiza el visualizador dinámico.
+                VisualizadorGrafo.Recargar();
             }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            catch (Exception error) when (
+                error is IOException ||
+                error is UnauthorizedAccessException ||
+                error is FormatException)
             {
-                TxtCantidadParadas.Text = "—";
-                TxtResultado.Text = $"Error al cargar datos: {error.Message}";
+                TxtResultado.Text =
+                    $"Error al cargar datos: {error.Message}";
             }
         }
 
-        // ====================================================================
-        // NAVEGACIÓN Y ENRUTAMIENTO DE VISTAS
-        // ====================================================================
-        private void Navegacion_Click(object sender, RoutedEventArgs e)
+        // ========================================
+        // NAVEGACIÓN
+        // ========================================
+
+        private void Navegacion_Click(
+            object sender,
+            RoutedEventArgs e)
         {
-            if (sender is not Button seleccionado) return;
+            if (sender is not Button seleccionado)
+                return;
 
-            Button[] botones = { BtnInicio, BtnParadas, BtnConexiones, BtnRecorridos, BtnRutas, BtnTrie };
+            Button[] botones =
+            {
+                BtnInicio,
+                BtnParadas,
+                BtnConexiones,
+                BtnRecorridos,
+                BtnRutas,
+                BtnTrie,
+                BtnPruebas
+            };
 
+            // Restablece los colores de navegación.
             foreach (Button boton in botones)
             {
                 boton.Background = Brushes.Transparent;
-                boton.Foreground = new SolidColorBrush(Color.FromRgb(201, 214, 231));
+                boton.Foreground = new SolidColorBrush(
+                    Color.FromRgb(201, 214, 231)
+                );
+
                 boton.FontWeight = FontWeights.Normal;
             }
 
-            seleccionado.Background = new SolidColorBrush(Color.FromRgb(34, 66, 115));
+            // Resalta el botón seleccionado.
+            seleccionado.Background = new SolidColorBrush(
+                Color.FromRgb(34, 66, 115)
+            );
+
             seleccionado.Foreground = Brushes.White;
             seleccionado.FontWeight = FontWeights.SemiBold;
 
-            string seccion = seleccionado.Tag?.ToString() ?? "Inicio";
+            string seccion =
+                seleccionado.Tag?.ToString() ?? "Inicio";
 
+            // VISTA GENERAL
             if (seccion == "Inicio")
             {
                 DashboardView.Visibility = Visibility.Visible;
                 SeccionView.Visibility = Visibility.Collapsed;
+
+                // Recarga los datos del CSV y el grafo visual.
                 CargarParadasDesdeCsv();
+
                 return;
             }
 
             DashboardView.Visibility = Visibility.Collapsed;
             SeccionView.Visibility = Visibility.Visible;
 
+            ContenidoParadas.Visibility = Visibility.Visible;
+            VistaPendiente.Visibility = Visibility.Collapsed;
+
+            // ADMINISTRACIÓN DE PARADAS
             if (seccion == "Paradas")
             {
                 if (paginaParadas == null)
                 {
                     paginaParadas = new ParadasPage();
-                    paginaParadas.ParadasActualizadas += CargarParadasDesdeCsv;
+
+                    paginaParadas.ParadasActualizadas +=
+                        CargarParadasDesdeCsv;
                 }
-                
-                ContenidoParadas.Content = paginaParadas; 
+
                 paginaParadas.Recargar();
-                ContenidoParadas.Visibility = Visibility.Visible;
-                VistaPendiente.Visibility = Visibility.Collapsed;
+
+                ContenidoParadas.Content = paginaParadas;
+
                 return;
             }
 
-            TxtSeccionTitulo.Text = seccion switch
-            {
-                "Conexiones" => "Conexiones y conectividad",
-                "Recorridos" => "Recorridos BFS y DFS",
-                "Rutas" => "Cálculo de rutas con Dijkstra",
-                "Autocompletado" => "Autocompletado de paradas",
-                _ => "Panel de control"
-            };
-
-            TxtSeccionDescripcion.Text = seccion switch
-            {
-                "Conexiones" => "Añade, elimina rutas y realiza consultas de conectividad con Union-Find.",
-                "Recorridos" => "Aquí se visualizarán los recorridos BFS y DFS sobre el Grafo.",
-                "Rutas" => "Visualiza detalladamente todas las paradas por las que atraviesa la ruta óptima.",
-                "Autocompletado" => "Aquí se mostrarán sugerencias de nombres de paradas mediante Trie.",
-                _ => "Gestión de la red de transporte urbano."
-            };
-
-            ContenidoParadas.Visibility = Visibility.Visible;
-            VistaPendiente.Visibility = Visibility.Collapsed; 
-
+            // RESTO DE FUNCIONALIDADES
             switch (seccion)
             {
                 case "Conexiones":
-                    ContenidoParadas.Content = ConstruirVistaConexiones();
+                    ContenidoParadas.Content =
+                        ConstruirVistaConexiones();
                     break;
+
                 case "Recorridos":
-                    ContenidoParadas.Content = ConstruirVistaRecorridos();
+                    ContenidoParadas.Content =
+                        ConstruirVistaRecorridos();
                     break;
+
                 case "Rutas":
-                    ContenidoParadas.Content = ConstruirVistaRutas();
+                    ContenidoParadas.Content =
+                        ConstruirVistaRutas();
                     break;
+
                 case "Autocompletado":
-                    ContenidoParadas.Content = ConstruirVistaAutocompletado();
+                    ContenidoParadas.Content =
+                        ConstruirVistaAutocompletado();
                     break;
+
+                case "Pruebas":
+                    ContenidoParadas.Content =
+                        ConstruirVistaPruebasHash();
+                    break;
+
                 default:
-                    ContenidoParadas.Visibility = Visibility.Collapsed;
-                    VistaPendiente.Visibility = Visibility.Visible;
+                    ContenidoParadas.Visibility =
+                        Visibility.Collapsed;
+
+                    VistaPendiente.Visibility =
+                        Visibility.Visible;
+
+                    TxtSeccionTitulo.Text = seccion;
+                    TxtSeccionDescripcion.Text =
+                        "Funcionalidad en preparación.";
                     break;
             }
         }
 
-        // ====================================================================
-        // CONSTRUCTORES DINÁMICOS DE INTERFAZ (WPF vía C#)
-        // ====================================================================
-        
-        // 1. AUTOCOMPLETADO (Trie)
+        // ========================================
+        // AUTOCOMPLETADO CON TRIE
+        // ========================================
+
         private UIElement ConstruirVistaAutocompletado()
         {
-            StackPanel panel = new StackPanel { Margin = new Thickness(20) };
-            panel.Children.Add(new TextBlock { Text = "Búsqueda Autocompletado (Trie -> Hash)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
-            
-            panel.Children.Add(new TextBlock { Text = "Escribe el nombre de la parada:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            
-            // Textos en color negro para que resalten en el fondo claro
-            TextBox txtBuscar = new TextBox { FontSize = 16, Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 10), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            panel.Children.Add(new TextBlock { Text = "Sugerencias en tiempo real:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            ListBox lstSugerencias = new ListBox { Height = 150, FontSize = 14, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            TextBlock txtDetalles = new TextBlock { FontSize = 14, Background = Brushes.WhiteSmoke, Padding = new Thickness(15), MinHeight = 100, Foreground = Brushes.Black };
+            StackPanel panel = new StackPanel
+            {
+                Margin = new Thickness(20)
+            };
 
-            txtBuscar.TextChanged += (s, e) => {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Autocompletado de paradas (Trie)",
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Escribe el nombre de una parada:",
+                Foreground = Brushes.LightGray,
+                Margin = new Thickness(0, 0, 0, 7)
+            });
+
+            TextBox txtBuscar = new TextBox
+            {
+                FontSize = 16,
+                Padding = new Thickness(8),
+                Background = Brushes.WhiteSmoke,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            ListBox lstSugerencias = new ListBox
+            {
+                Height = 200,
+                FontSize = 14,
+                Background = Brushes.WhiteSmoke,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            TextBlock txtDetalles = new TextBlock
+            {
+                FontSize = 14,
+                Background = Brushes.WhiteSmoke,
+                Foreground = Brushes.Black,
+                Padding = new Thickness(15),
+                MinHeight = 100,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            // Obtiene sugerencias conforme se escribe.
+            txtBuscar.TextChanged += (s, e) =>
+            {
                 lstSugerencias.Items.Clear();
+
                 string prefijo = txtBuscar.Text.Trim();
-                if (prefijo.Length > 0 && trie != null) {
-                    foreach (string res in trie.BuscarPorPrefijo(prefijo)) lstSugerencias.Items.Add(res);
+
+                if (prefijo.Length == 0)
+                    return;
+
+                string[] resultados =
+                    trie.BuscarPorPrefijo(prefijo);
+
+                foreach (string resultado in resultados)
+                {
+                    lstSugerencias.Items.Add(resultado);
                 }
             };
 
-            lstSugerencias.SelectionChanged += (s, e) => {
-                if (lstSugerencias.SelectedItem != null && tabla != null) {
-                    string codigo = lstSugerencias.SelectedItem.ToString()!.Split('|')[0];
-                    Parada? p = tabla.Buscar(codigo);
-                    if (p != null) txtDetalles.Text = $"📍 DETALLES LOCALIZADOS EN TABLA HASH\n\nCódigo: {p.Codigo}\nNombre: {p.Nombre}\nCoordenadas: {p.Latitud}, {p.Longitud}";
+            // Localiza en Tabla Hash la parada seleccionada.
+            lstSugerencias.SelectionChanged += (s, e) =>
+            {
+                if (lstSugerencias.SelectedItem == null)
+                    return;
+
+                string texto =
+                    lstSugerencias.SelectedItem.ToString() ?? "";
+
+                string codigo = texto.Split('|')[0];
+
+                Parada? parada = tabla.Buscar(codigo);
+
+                if (parada != null)
+                {
+                    txtDetalles.Text =
+                        "DETALLES DE LA PARADA\n\n" +
+                        $"Código: {parada.Codigo}\n" +
+                        $"Nombre: {parada.Nombre}\n" +
+                        $"Latitud: {parada.Latitud}\n" +
+                        $"Longitud: {parada.Longitud}";
                 }
             };
 
             panel.Children.Add(txtBuscar);
             panel.Children.Add(lstSugerencias);
             panel.Children.Add(txtDetalles);
+
             return panel;
         }
 
-        // 2. RECORRIDOS (BFS / DFS)
+        // ========================================
+        // RECORRIDOS BFS Y DFS
+        // ========================================
+
         private UIElement ConstruirVistaRecorridos()
         {
-            StackPanel panel = new StackPanel { Margin = new Thickness(20) };
-            panel.Children.Add(new TextBlock { Text = "Recorridos de Grafo (BFS y DFS)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
-            
-            panel.Children.Add(new TextBlock { Text = "Código de Parada de Inicio:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            TextBox txtInicio = new TextBox { FontSize = 14, Padding = new Thickness(5), Width = 150, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            StackPanel panelBotones = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 15) };
-            Button btnBFS = new Button { Content = "Ejecutar BFS (Niveles)", Width = 150, Padding = new Thickness(8), Background = Brushes.SteelBlue, Foreground = Brushes.White, Margin = new Thickness(0, 0, 10, 0), Cursor = Cursors.Hand };
-            Button btnDFS = new Button { Content = "Ejecutar DFS (Profundidad)", Width = 160, Padding = new Thickness(8), Background = Brushes.SlateGray, Foreground = Brushes.White, Cursor = Cursors.Hand };
-            panelBotones.Children.Add(btnBFS); panelBotones.Children.Add(btnDFS);
-
-            TextBox txtResultados = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 250, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-
-            btnBFS.Click += (s, e) => {
-                if (algoritmos == null) return;
-                string[] r = algoritmos.BFS(txtInicio.Text.Trim());
-                txtResultados.Text = r.Length > 0 ? "🌐 ORDEN DE VISITA BFS:\n\n" + FormatearRutaConNombres(r) : "Parada no encontrada.";
+            StackPanel panel = new StackPanel
+            {
+                Margin = new Thickness(20)
             };
 
-            btnDFS.Click += (s, e) => {
-                if (algoritmos == null) return;
-                string[] r = algoritmos.DFS(txtInicio.Text.Trim());
-                txtResultados.Text = r.Length > 0 ? "🌲 ORDEN DE VISITA DFS:\n\n" + FormatearRutaConNombres(r) : "Parada no encontrada.";
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Recorridos de Grafo (BFS y DFS)",
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Código de parada de inicio:",
+                Foreground = Brushes.LightGray
+            });
+
+            TextBox txtInicio = new TextBox
+            {
+                Width = 160,
+                FontSize = 14,
+                Padding = new Thickness(7),
+                Background = Brushes.WhiteSmoke,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 7, 0, 15)
+            };
+
+            StackPanel botones = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            Button btnBFS = new Button
+            {
+                Content = "Ejecutar BFS",
+                Width = 150,
+                Padding = new Thickness(10),
+                Background = Brushes.SteelBlue,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+
+            Button btnDFS = new Button
+            {
+                Content = "Ejecutar DFS",
+                Width = 150,
+                Padding = new Thickness(10),
+                Background = Brushes.SlateGray,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand
+            };
+
+            botones.Children.Add(btnBFS);
+            botones.Children.Add(btnDFS);
+
+            TextBox txtResultados = new TextBox
+            {
+                IsReadOnly = true,
+                TextWrapping = TextWrapping.Wrap,
+                Height = 300,
+                VerticalScrollBarVisibility =
+                    ScrollBarVisibility.Auto,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14,
+                Padding = new Thickness(10),
+                Background = Brushes.WhiteSmoke
+            };
+
+            btnBFS.Click += (s, e) =>
+            {
+                if (algoritmos == null)
+                    return;
+
+                string[] recorrido =
+                    algoritmos.BFS(txtInicio.Text.Trim());
+
+                txtResultados.Text = recorrido.Length > 0
+                    ? "ORDEN DE VISITA BFS:\n\n" +
+                      FormatearRutaConNombres(recorrido)
+                    : "Parada no encontrada.";
+            };
+
+            btnDFS.Click += (s, e) =>
+            {
+                if (algoritmos == null)
+                    return;
+
+                string[] recorrido =
+                    algoritmos.DFS(txtInicio.Text.Trim());
+
+                txtResultados.Text = recorrido.Length > 0
+                    ? "ORDEN DE VISITA DFS:\n\n" +
+                      FormatearRutaConNombres(recorrido)
+                    : "Parada no encontrada.";
             };
 
             panel.Children.Add(txtInicio);
-            panel.Children.Add(panelBotones);
+            panel.Children.Add(botones);
             panel.Children.Add(txtResultados);
+
             return panel;
         }
 
-        // 3. CONEXIONES (AGREGAR RUTAS) Y UNION-FIND
+        // ========================================
+        // CONEXIONES Y UNION-FIND
+        // ========================================
+
         private UIElement ConstruirVistaConexiones()
         {
-            StackPanel panel = new StackPanel { Margin = new Thickness(20) };
-            
-            panel.Children.Add(new TextBlock { Text = "Gestión de Conexiones (Añadir / Eliminar)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
-            
-            // FILA AGREGAR
-            StackPanel rowAgregar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,10) };
-            rowAgregar.Children.Add(CrearCampoOpcion("Origen:", out TextBox txtOriAdd));
-            rowAgregar.Children.Add(CrearCampoOpcion("Destino:", out TextBox txtDesAdd));
-            rowAgregar.Children.Add(CrearCampoOpcion("Tiempo(m):", out TextBox txtTiempo));
-            rowAgregar.Children.Add(CrearCampoOpcion("Costo(Q):", out TextBox txtCosto));
-            CheckBox chkUnSentido = new CheckBox { Content = "Un solo sentido", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10,0,15,0) };
-            Button btnAddRuta = new Button { Content = "➕ Conectar", Padding = new Thickness(15,5,15,5), Background = Brushes.MediumSeaGreen, Foreground = Brushes.White, Cursor = Cursors.Hand };
-            rowAgregar.Children.Add(chkUnSentido); rowAgregar.Children.Add(btnAddRuta);
-            panel.Children.Add(rowAgregar);
+            StackPanel panel = new StackPanel
+            {
+                Margin = new Thickness(15)
+            };
 
-            // FILA ELIMINAR
-            StackPanel rowEliminar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,15) };
-            rowEliminar.Children.Add(CrearCampoOpcion("Origen:", out TextBox txtOriDel));
-            rowEliminar.Children.Add(CrearCampoOpcion("Destino:", out TextBox txtDesDel));
-            CheckBox chkAmbosSentidos = new CheckBox { Content = "Ambos sentidos", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10,0,15,0), IsChecked = true };
-            Button btnDelRuta = new Button { Content = "🗑️ Eliminar", Padding = new Thickness(15,5,15,5), Background = Brushes.Crimson, Foreground = Brushes.White, Cursor = Cursors.Hand };
-            rowEliminar.Children.Add(chkAmbosSentidos); rowEliminar.Children.Add(btnDelRuta);
-            panel.Children.Add(rowEliminar);
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Gestión de conexiones",
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            // FORMULARIO PARA AGREGAR RUTAS
+            StackPanel agregar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            agregar.Children.Add(
+                CrearCampoOpcion("Origen:", out TextBox oriAdd));
+
+            agregar.Children.Add(
+                CrearCampoOpcion("Destino:", out TextBox desAdd));
+
+            agregar.Children.Add(
+                CrearCampoOpcion("Tiempo:", out TextBox tiempo));
+
+            agregar.Children.Add(
+                CrearCampoOpcion("Costo:", out TextBox costo));
+
+            CheckBox chkUnSentido = new CheckBox
+            {
+                Content = "Un sentido",
+                Foreground = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 10, 0)
+            };
+
+            Button btnAgregar = new Button
+            {
+                Content = "Conectar",
+                Padding = new Thickness(10, 5, 10, 5),
+                Background = Brushes.MediumSeaGreen,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand
+            };
+
+            agregar.Children.Add(chkUnSentido);
+            agregar.Children.Add(btnAgregar);
+            panel.Children.Add(agregar);
+
+            // FORMULARIO PARA ELIMINAR RUTAS
+            StackPanel eliminar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            eliminar.Children.Add(
+                CrearCampoOpcion("Origen:", out TextBox oriDel));
+
+            eliminar.Children.Add(
+                CrearCampoOpcion("Destino:", out TextBox desDel));
+
+            CheckBox chkAmbos = new CheckBox
+            {
+                Content = "Ambos sentidos",
+                IsChecked = true,
+                Foreground = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 10, 0)
+            };
+
+            Button btnEliminar = new Button
+            {
+                Content = "Eliminar",
+                Padding = new Thickness(10, 5, 10, 5),
+                Background = Brushes.Crimson,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand
+            };
+
+            eliminar.Children.Add(chkAmbos);
+            eliminar.Children.Add(btnEliminar);
+            panel.Children.Add(eliminar);
 
             // LISTA DE ADYACENCIA
-            panel.Children.Add(new TextBlock { Text = "Lista de Adyacencia Actualizada:", FontSize = 16, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 5), Foreground = Brushes.White });
-            ListBox lstGrafo = new ListBox { FontFamily = new FontFamily("Consolas"), FontSize = 14, Height = 220, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Lista de adyacencia:",
+                FontSize = 16,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 10, 0, 7)
+            });
+
+            ListBox lstGrafo = new ListBox
+            {
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 13,
+                Height = 220,
+                Background = Brushes.WhiteSmoke
+            };
+
             ActualizarListaAdyacencia(lstGrafo);
+
             panel.Children.Add(lstGrafo);
 
-            // PRUEBA UNION-FIND
-            panel.Children.Add(new TextBlock { Text = "Prueba de Conectividad de Zonas (Union-Find)", FontSize = 16, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 20, 0, 10), Foreground = Brushes.White });
-            StackPanel panelUF = new StackPanel { Orientation = Orientation.Horizontal };
-            panelUF.Children.Add(CrearCampoOpcion("Parada A:", out TextBox txtUF1));
-            panelUF.Children.Add(CrearCampoOpcion("Parada B:", out TextBox txtUF2));
-            Button btnUF = new Button { Content = "Verificar Conexión", Padding = new Thickness(10,5,10,5), Cursor = Cursors.Hand, Background = Brushes.SteelBlue, Foreground = Brushes.White };
-            TextBlock txtResUF = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(15,0,0,0), FontWeight = FontWeights.Bold };
-            panelUF.Children.Add(btnUF); panelUF.Children.Add(txtResUF);
+            // CONSULTA UNION-FIND
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Conectividad mediante Union-Find",
+                FontSize = 16,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 20, 0, 10)
+            });
+
+            StackPanel panelUF = new StackPanel
+            {
+                Orientation = Orientation.Horizontal
+            };
+
+            panelUF.Children.Add(
+                CrearCampoOpcion("Parada A:", out TextBox uf1));
+
+            panelUF.Children.Add(
+                CrearCampoOpcion("Parada B:", out TextBox uf2));
+
+            Button btnUF = new Button
+            {
+                Content = "Verificar conexión",
+                Padding = new Thickness(10, 5, 10, 5),
+                Background = Brushes.SteelBlue,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand
+            };
+
+            TextBlock resultadoUF = new TextBlock
+            {
+                Foreground = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(15, 0, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            panelUF.Children.Add(btnUF);
+            panelUF.Children.Add(resultadoUF);
             panel.Children.Add(panelUF);
 
-            // ================== EVENTOS DE CONEXIONES ==================
-            btnAddRuta.Click += (s, e) => {
-                if (double.TryParse(txtTiempo.Text, out double t) && double.TryParse(txtCosto.Text, out double c)) {
-                    if (grafo.AgregarRuta(txtOriAdd.Text.Trim(), txtDesAdd.Text.Trim(), t, c, chkUnSentido.IsChecked == true, conectividad)) {
-                        ActualizarListaAdyacencia(lstGrafo);
-                        txtOriAdd.Clear(); txtDesAdd.Clear(); txtTiempo.Clear(); txtCosto.Clear();
-                    } else { MessageBox.Show("No se pudo conectar. Verifica que ambos códigos existan."); }
-                } else { MessageBox.Show("El tiempo y el costo deben ser números."); }
-            };
+            // REGISTRAR CONEXIÓN
+            btnAgregar.Click += (s, e) =>
+            {
+                bool tiempoValido = double.TryParse(
+                    tiempo.Text,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out double t
+                );
 
-            btnDelRuta.Click += (s, e) => {
-                if (grafo.EliminarRuta(txtOriDel.Text.Trim(), txtDesDel.Text.Trim(), chkAmbosSentidos.IsChecked == true)) {
-                    SincronizarUnionFind(); 
+                bool costoValido = double.TryParse(
+                    costo.Text,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out double c
+                );
+
+                if (!tiempoValido || !costoValido)
+                {
+                    MessageBox.Show(
+                        "El tiempo y costo deben ser números con punto decimal."
+                    );
+                    return;
+                }
+
+                bool agregada = grafo.AgregarRuta(
+                    oriAdd.Text.Trim().ToUpperInvariant(),
+                    desAdd.Text.Trim().ToUpperInvariant(),
+                    t,
+                    c,
+                    chkUnSentido.IsChecked == true,
+                    conectividad
+                );
+
+                if (agregada)
+                {
                     ActualizarListaAdyacencia(lstGrafo);
-                    txtOriDel.Clear(); txtDesDel.Clear();
-                } else { MessageBox.Show("No se encontró la conexión para eliminar."); }
-            };
 
-            btnUF.Click += (s, e) => {
-                if (conectividad != null && conectividad.ExisteParada(txtUF1.Text) && conectividad.ExisteParada(txtUF2.Text)) {
-                    bool conectadas = conectividad.EstanConectadas(txtUF1.Text, txtUF2.Text);
-                    txtResUF.Text = conectadas ? "✅ Pertenecen a la misma zona conectada." : "❌ Pertenecen a zonas desconectadas.";
-                    txtResUF.Foreground = conectadas ? Brushes.LightGreen : Brushes.LightCoral;
-                } else {
-                    txtResUF.Text = "⚠️ Uno o ambos códigos no existen.";
-                    txtResUF.Foreground = Brushes.DarkOrange;
+                    oriAdd.Clear();
+                    desAdd.Clear();
+                    tiempo.Clear();
+                    costo.Clear();
+                }
+                else
+                {
+                    MessageBox.Show(
+                        "No se pudo agregar la conexión. Verifica los códigos."
+                    );
                 }
             };
 
-            return panel;
+            // ELIMINAR CONEXIÓN
+            btnEliminar.Click += (s, e) =>
+            {
+                bool eliminada = grafo.EliminarRuta(
+                    oriDel.Text.Trim().ToUpperInvariant(),
+                    desDel.Text.Trim().ToUpperInvariant(),
+                    chkAmbos.IsChecked == true
+                );
+
+                if (eliminada)
+                {
+                    SincronizarUnionFind();
+                    ActualizarListaAdyacencia(lstGrafo);
+
+                    oriDel.Clear();
+                    desDel.Clear();
+                }
+                else
+                {
+                    MessageBox.Show(
+                        "No se encontró la conexión."
+                    );
+                }
+            };
+
+            // COMPROBAR CONECTIVIDAD
+            btnUF.Click += (s, e) =>
+            {
+                if (conectividad == null ||
+                    !conectividad.ExisteParada(uf1.Text) ||
+                    !conectividad.ExisteParada(uf2.Text))
+                {
+                    resultadoUF.Text =
+                        "Una o ambas paradas no existen.";
+
+                    resultadoUF.Foreground =
+                        Brushes.Orange;
+
+                    return;
+                }
+
+                bool conectadas = conectividad.EstanConectadas(
+                    uf1.Text,
+                    uf2.Text
+                );
+
+                resultadoUF.Text = conectadas
+                    ? "Pertenecen al mismo conjunto."
+                    : "Pertenecen a conjuntos diferentes.";
+
+                resultadoUF.Foreground = conectadas
+                    ? Brushes.LightGreen
+                    : Brushes.LightCoral;
+            };
+
+            // Permite desplazarse por toda la pantalla.
+            ScrollViewer scroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility =
+                    ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility =
+                    ScrollBarVisibility.Auto,
+                Content = panel
+            };
+
+            return scroll;
         }
 
-        private UIElement CrearCampoOpcion(string etiqueta, out TextBox textBox) {
-            StackPanel panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,15,0) };
-            panel.Children.Add(new TextBlock { Text = etiqueta, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0) });
-            textBox = new TextBox { Width = 60, Padding = new Thickness(3), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
+        // Crea un campo etiquetado para conexiones.
+        private UIElement CrearCampoOpcion(
+            string etiqueta,
+            out TextBox textBox)
+        {
+            StackPanel panel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = etiqueta,
+                Foreground = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0)
+            });
+
+            textBox = new TextBox
+            {
+                Width = 67,
+                Padding = new Thickness(4),
+                Background = Brushes.WhiteSmoke
+            };
+
             panel.Children.Add(textBox);
+
             return panel;
         }
 
-        private void ActualizarListaAdyacencia(ListBox lstGrafo) {
-            lstGrafo.Items.Clear();
-            if (grafo != null) {
-                foreach (Vertice v in grafo.ObtenerVertices()) {
-                    string linea = $"{v.Parada.Codigo} ({v.Parada.Nombre}) -> ";
-                    Ruta? ruta = v.Adyacentes;
-                    if (ruta == null) linea += "Sin rutas";
-                    while (ruta != null) {
-                        linea += $"[{ruta.Destino} | {ruta.Tiempo}m | Q{ruta.Costo:F2} | {(ruta.UnSoloSentido ? "1 vía" : "Doble")}]  ";
-                        ruta = ruta.Siguiente;
-                    }
-                    lstGrafo.Items.Add(linea);
+        // Actualiza la lista de adyacencia del Grafo.
+        private void ActualizarListaAdyacencia(ListBox lista)
+        {
+            lista.Items.Clear();
+
+            foreach (Vertice vertice in grafo.ObtenerVertices())
+            {
+                string linea =
+                    $"{vertice.Parada.Codigo} " +
+                    $"({vertice.Parada.Nombre}) -> ";
+
+                Ruta? ruta = vertice.Adyacentes;
+
+                if (ruta == null)
+                {
+                    linea += "Sin rutas";
                 }
+
+                while (ruta != null)
+                {
+                    linea +=
+                        $"[{ruta.Destino} | " +
+                        $"{ruta.Tiempo} min | " +
+                        $"Q{ruta.Costo:F2}]  ";
+
+                    ruta = ruta.Siguiente;
+                }
+
+                lista.Items.Add(linea);
             }
         }
 
+        // Reconstruye Union-Find después de eliminar rutas.
         private void SincronizarUnionFind()
         {
-            if (tabla == null || grafo == null) return;
-            conectividad = new ConectividadParadas(tabla.ObtenerParadas());
-            foreach (Ruta r in grafo.ObtenerRutas()) conectividad.UnirParadas(r.Origen, r.Destino);
+            conectividad = new ConectividadParadas(
+                tabla.ObtenerParadas()
+            );
+
+            foreach (Ruta ruta in grafo.ObtenerRutas())
+            {
+                conectividad.UnirParadas(
+                    ruta.Origen,
+                    ruta.Destino
+                );
+            }
         }
 
-        // 4. RUTAS (Dijkstra Dedicado)
+        // ========================================
+        // PANTALLA DEDICADA A DIJKSTRA
+        // ========================================
+
         private UIElement ConstruirVistaRutas()
         {
-            StackPanel panel = new StackPanel { Margin = new Thickness(20) };
-            panel.Children.Add(new TextBlock { Text = "Cálculo de Rutas (Dijkstra)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
-            
-            StackPanel controles = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 15) };
-            controles.Children.Add(new TextBlock { Text = "Origen:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0), Foreground = Brushes.White });
-            TextBox txtOri = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            controles.Children.Add(new TextBlock { Text = "Destino:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0), Foreground = Brushes.White });
-            TextBox txtDes = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            Button btn = new Button { Content = "Calcular Ruta Paso a Paso", Padding = new Thickness(15,5,15,5), Background = Brushes.MediumSeaGreen, Foreground = Brushes.White, Cursor = Cursors.Hand };
-            controles.Children.Add(txtOri); controles.Children.Add(txtDes); controles.Children.Add(btn);
+            StackPanel panel = new StackPanel
+            {
+                Margin = new Thickness(20)
+            };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Cálculo de rutas con Dijkstra",
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            StackPanel controles = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            controles.Children.Add(
+                CrearCampoOpcion("Origen:", out TextBox origen));
+
+            controles.Children.Add(
+                CrearCampoOpcion("Destino:", out TextBox destino));
+
+            Button calcular = new Button
+            {
+                Content = "Calcular rutas",
+                Padding = new Thickness(15, 5, 15, 5),
+                Background = Brushes.MediumSeaGreen,
+                Foreground = Brushes.White,
+                Cursor = Cursors.Hand
+            };
+
+            controles.Children.Add(calcular);
             panel.Children.Add(controles);
 
-            TextBox txtRes = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 400, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
-            
-            btn.Click += (s, e) => {
-                if (algoritmos == null) return;
-                ResultadoRuta rT = algoritmos.Dijkstra(txtOri.Text.Trim(), txtDes.Text.Trim(), CriterioRuta.Tiempo, conectividad);
-                ResultadoRuta rC = algoritmos.Dijkstra(txtOri.Text.Trim(), txtDes.Text.Trim(), CriterioRuta.Costo, conectividad);
-                
-                if (rT.Encontrada && rC.Encontrada) {
-                    txtRes.Text = $"⏳ MÁS RÁPIDA (Optimizada por Tiempo):\n" +
-                                  $"Resumen: {rT.TiempoTotal}m | Q{rT.CostoTotal:F2}\n" +
-                                  $"Itinerario Completo:\n{FormatearRutaConNombres(rT.Camino)}\n\n" +
-                                  new string('=', 60) + "\n\n" +
-                                  $"💰 MÁS BARATA (Optimizada por Costo):\n" +
-                                  $"Resumen: {rC.TiempoTotal}m | Q{rC.CostoTotal:F2}\n" +
-                                  $"Itinerario Completo:\n{FormatearRutaConNombres(rC.Camino)}";
-                } else {
-                    txtRes.Text = $"Error: {rT.Mensaje}";
-                }
+            TextBox resultados = new TextBox
+            {
+                IsReadOnly = true,
+                TextWrapping = TextWrapping.Wrap,
+                Height = 410,
+                VerticalScrollBarVisibility =
+                    ScrollBarVisibility.Auto,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14,
+                Padding = new Thickness(12),
+                Background = Brushes.WhiteSmoke
             };
-            
-            panel.Children.Add(txtRes);
+
+            // Calcula rutas por tiempo y costo.
+            calcular.Click += (s, e) =>
+            {
+                if (algoritmos == null)
+                    return;
+
+                string codigoOrigen =
+                    origen.Text.Trim().ToUpperInvariant();
+
+                string codigoDestino =
+                    destino.Text.Trim().ToUpperInvariant();
+
+                ResultadoRuta rutaTiempo = algoritmos.Dijkstra(
+                    codigoOrigen,
+                    codigoDestino,
+                    CriterioRuta.Tiempo,
+                    conectividad
+                );
+
+                ResultadoRuta rutaCosto = algoritmos.Dijkstra(
+                    codigoOrigen,
+                    codigoDestino,
+                    CriterioRuta.Costo,
+                    conectividad
+                );
+
+                if (!rutaTiempo.Encontrada ||
+                    !rutaCosto.Encontrada)
+                {
+                    resultados.Text = !rutaTiempo.Encontrada
+                        ? rutaTiempo.Mensaje
+                        : rutaCosto.Mensaje;
+                    return;
+                }
+
+                resultados.Text =
+                    "RUTA MÁS RÁPIDA\n" +
+                    $"Tiempo: {rutaTiempo.TiempoTotal} min\n" +
+                    $"Costo: Q{rutaTiempo.CostoTotal:F2}\n\n" +
+                    FormatearRutaConNombres(rutaTiempo.Camino) +
+                    "\n\n" +
+                    new string('=', 40) +
+                    "\n\nRUTA MÁS ECONÓMICA\n" +
+                    $"Tiempo: {rutaCosto.TiempoTotal} min\n" +
+                    $"Costo: Q{rutaCosto.CostoTotal:F2}\n\n" +
+                    FormatearRutaConNombres(rutaCosto.Camino);
+            };
+
+            panel.Children.Add(resultados);
+
             return panel;
         }
 
-        // ====================================================================
-        // EVENTOS ORIGINALES DEL DASHBOARD
-        // ====================================================================
-        private void Criterio_Click(object sender, RoutedEventArgs e)
+        
+        // PRUEBAS ESPECIALES TABLA HASH
+        
+        private UIElement ConstruirVistaPruebasHash()
         {
-            if (sender is not Button boton) return;
-            criterioActual = boton.Tag?.ToString() == "Costo" ? "Costo" : "Tiempo";
+            StackPanel panel = new StackPanel
+            {
+                Margin = new Thickness(20)
+            };
 
-            BtnTiempo.Background = new SolidColorBrush(criterioActual == "Tiempo" ? Color.FromRgb(40, 101, 232) : Color.FromRgb(41, 57, 79));
-            BtnCosto.Background = new SolidColorBrush(criterioActual == "Costo" ? Color.FromRgb(40, 101, 232) : Color.FromRgb(41, 57, 79));
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Pruebas especiales de Tabla Hash",
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            Button ejecutar = new Button
+            {
+                Content = "Ejecutar pruebas",
+                Padding = new Thickness(15, 8, 15, 8),
+                Background = Brushes.SteelBlue,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+
+            TextBox resultados = new TextBox
+            {
+                IsReadOnly = true,
+                Height = 350,
+                Padding = new Thickness(12),
+                TextWrapping = TextWrapping.Wrap,
+                VerticalScrollBarVisibility =
+                    ScrollBarVisibility.Auto,
+                Background = Brushes.WhiteSmoke,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14
+            };
+
+            ejecutar.Click += (s, e) =>
+            {
+                TablaHash prueba = new TablaHash(5);
+
+                Parada? p001 = tabla.Buscar("P001");
+                Parada? p006 = tabla.Buscar("P006");
+                Parada? p010 = tabla.Buscar("P010");
+
+                if (p001 == null || p006 == null || p010 == null)
+                {
+                    resultados.Text =
+                        "Faltan P001, P006 o P010 en el CSV.";
+                    return;
+                }
+
+                bool insertar1 = prueba.Insertar(p001);
+                bool insertar2 = prueba.Insertar(p006);
+
+                bool duplicado = prueba.Insertar(p001);
+
+                bool buscar1 = prueba.Buscar("P001") != null;
+                bool buscar2 = prueba.Buscar("P006") != null;
+
+                bool eliminar = prueba.Eliminar("P001");
+
+                bool sigueP006 =
+                    prueba.Buscar("P006") != null;
+
+                bool insertar3 = prueba.Insertar(p010);
+
+                resultados.Text =
+                    "--- PRUEBAS TABLA HASH ---\n\n" +
+                    $"Insertar P001: {insertar1}\n" +
+                    $"Insertar P006: {insertar2}\n" +
+                    $"Duplicado rechazado: {!duplicado}\n" +
+                    $"Buscar P001: {buscar1}\n" +
+                    $"Buscar P006: {buscar2}\n" +
+                    $"Eliminar P001: {eliminar}\n" +
+                    $"P006 sigue accesible: {sigueP006}\n" +
+                    $"Reutilizar posición con P010: {insertar3}\n";
+            };
+
+            panel.Children.Add(ejecutar);
+            panel.Children.Add(resultados);
+
+            return panel;
         }
 
-        private void CalcularRuta_Click(object sender, RoutedEventArgs e)
-        {
-            if (CmbOrigen.SelectedItem is not ParadaItem origen) { TxtResultado.Text = "Selecciona origen."; return; }
-            if (CmbDestino.SelectedItem is not ParadaItem destino) { TxtResultado.Text = "Selecciona destino."; return; }
-            if (origen.Codigo == destino.Codigo) { TxtResultado.Text = "Selecciona paradas diferentes."; return; }
-            if (algoritmos == null) return;
+        // SELECCIÓN DE TIEMPO O COSTO
+    
 
-            CriterioRuta criterio = criterioActual == "Tiempo" ? CriterioRuta.Tiempo : CriterioRuta.Costo;
-            ResultadoRuta resultado = algoritmos.Dijkstra(origen.Codigo, destino.Codigo, criterio, conectividad);
+        private void Criterio_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (sender is not Button boton)
+                return;
+
+            criterioActual =
+                boton.Tag?.ToString() == "Costo"
+                    ? "Costo"
+                    : "Tiempo";
+
+            BtnTiempo.Background = new SolidColorBrush(
+                criterioActual == "Tiempo"
+                    ? Color.FromRgb(40, 101, 232)
+                    : Color.FromRgb(41, 57, 79)
+            );
+
+            BtnCosto.Background = new SolidColorBrush(
+                criterioActual == "Costo"
+                    ? Color.FromRgb(40, 101, 232)
+                    : Color.FromRgb(41, 57, 79)
+            );
+        }
+
+       
+        // DIJKSTRA EN EL DASHBOARD
+      
+
+        private void CalcularRuta_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            // Verifica el origen.
+            if (CmbOrigen.SelectedItem is not ParadaItem origen)
+            {
+                TxtResultado.Text =
+                    "Selecciona una parada de origen.";
+                return;
+            }
+
+            // Verifica el destino.
+            if (CmbDestino.SelectedItem is not ParadaItem destino)
+            {
+                TxtResultado.Text =
+                    "Selecciona una parada de destino.";
+                return;
+            }
+
+            // Evita origen y destino iguales.
+            if (origen.Codigo == destino.Codigo)
+            {
+                TxtResultado.Text =
+                    "Selecciona dos paradas diferentes.";
+                return;
+            }
+
+            if (algoritmos == null)
+            {
+                TxtResultado.Text =
+                    "El Grafo no está inicializado.";
+                return;
+            }
+
+            // Define el criterio.
+            CriterioRuta criterio = criterioActual == "Tiempo"
+                ? CriterioRuta.Tiempo
+                : CriterioRuta.Costo;
+
+            // Ejecuta Dijkstra.
+            ResultadoRuta resultado = algoritmos.Dijkstra(
+                origen.Codigo,
+                destino.Codigo,
+                criterio,
+                conectividad
+            );
 
             if (resultado.Encontrada)
             {
-                TxtResultado.Text = 
-                    $"RUTA ÓPTIMA ({criterioActual.ToUpper()})\n" +
-                    $"Tiempo Total: {resultado.TiempoTotal} min | Costo Total: Q{resultado.CostoTotal:F2}\n\n" +
-                    $"Itinerario Completo:\n{FormatearRutaConNombres(resultado.Camino)}";
+                TxtResultado.Text =
+                    $"RUTA ÓPTIMA ({criterioActual.ToUpperInvariant()})\n" +
+                    $"Tiempo total: {resultado.TiempoTotal} min\n" +
+                    $"Costo total: Q{resultado.CostoTotal:F2}\n\n" +
+                    "ITINERARIO COMPLETO:\n" +
+                    FormatearRutaConNombres(resultado.Camino);
             }
             else
             {
-                TxtResultado.Text = $"No se encontró ruta: {resultado.Mensaje}";
+                TxtResultado.Text =
+                    $"No se encontró ruta: {resultado.Mensaje}";
             }
+
+            // Muestra el inicio del resultado.
+            // El usuario puede desplazarse para ver todo.
+            ScrollResultado.ScrollToTop();
         }
 
-        private string FormatearRutaConNombres(string[] codigos)
+        // FORMATO DE RECORRIDOS
+    
+
+        private string FormatearRutaConNombres(
+            string[] codigos)
         {
-            if (codigos == null || codigos.Length == 0) return "Sin ruta";
-            
-            List<string> paradasListadas = new List<string>();
-            
+            if (codigos == null || codigos.Length == 0)
+                return "Sin ruta.";
+
+            List<string> pasos = new List<string>();
+
             for (int i = 0; i < codigos.Length; i++)
             {
-                Parada? p = tabla.Buscar(codigos[i]);
-                string nombreParada = p != null ? $"{p.Codigo} ({p.Nombre})" : codigos[i];
+                Parada? parada = tabla.Buscar(codigos[i]);
 
-                if (i == 0) { paradasListadas.Add($"   {i + 1}. {nombreParada} [ORIGEN]"); }
-                else if (i == codigos.Length - 1) { paradasListadas.Add($"   {i + 1}. {nombreParada} [DESTINO FINAL]"); }
-                else { paradasListadas.Add($"   {i + 1}. {nombreParada}"); }
+                string nombre = parada != null
+                    ? $"{parada.Codigo} ({parada.Nombre})"
+                    : codigos[i];
+
+                if (i == 0)
+                {
+                    pasos.Add(
+                        $"{i + 1}. {nombre} [ORIGEN]"
+                    );
+                }
+                else if (i == codigos.Length - 1)
+                {
+                    pasos.Add(
+                        $"{i + 1}. {nombre} [DESTINO FINAL]"
+                    );
+                }
+                else
+                {
+                    pasos.Add(
+                        $"{i + 1}. {nombre}"
+                    );
+                }
             }
-            
-            return string.Join("\n     ↓\n", paradasListadas);
+
+            return string.Join("\n   ↓\n", pasos);
         }
 
-        private void Salir_Click(object sender, RoutedEventArgs e)
+        // SALIR
+
+        private void Salir_Click(
+            object sender,
+            RoutedEventArgs e)
         {
             Close();
         }
