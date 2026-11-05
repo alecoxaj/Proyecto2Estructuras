@@ -14,3 +14,20 @@ C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.pdb
 C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.genruntimeconfig.cache
 C:\Users\aleja\Proyecto2Estructuras\obj\Debug\net10.0\ref\Proyecto2Estructuras.dll
 C:\Users\aleja\Proyecto2Estructuras\bin\Debug\net10.0\Datos\paradas.csv
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Datos\paradas.csv
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Datos\rutas.csv
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.exe
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.deps.json
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.runtimeconfig.json
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.dll
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\bin\Debug\net10.0\Proyecto2Estructuras.pdb
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.AssemblyInfoInputs.cache
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.AssemblyInfo.cs
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.csproj.CoreCompileInputs.cache
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.sourcelink.json
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.dll
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\refint\Proyecto2Estructuras.dll
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.pdb
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\Proyecto2Estructuras.genruntimeconfig.cache
+C:\Users\daaba\Desktop\URL\SEMESTRE IV\Proyectos_c\Estructuras2\Proyecto2Estructuras\obj\Debug\net10.0\ref\Proyecto2Estructuras.dll
