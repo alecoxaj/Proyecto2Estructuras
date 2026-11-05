@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using System.Windows.Input; 
 using System.Windows.Media;
 using UrbanRoute.UI.Views;
 using UrbanRoute.UI.Servicios;
@@ -214,12 +214,17 @@ namespace UrbanRoute.UI
             panel.Children.Add(new TextBlock { Text = "Búsqueda Autocompletado (Trie -> Hash)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
             
             panel.Children.Add(new TextBlock { Text = "Escribe el nombre de la parada:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            TextBox txtBuscar = new TextBox { FontSize = 16, Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 10), Background = Brushes.WhiteSmoke };
+            
+            // Se agregó Foreground = Brushes.Black al TextBox
+            TextBox txtBuscar = new TextBox { FontSize = 16, Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 10), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             panel.Children.Add(new TextBlock { Text = "Sugerencias en tiempo real:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            ListBox lstSugerencias = new ListBox { Height = 150, FontSize = 14, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke };
             
-            TextBlock txtDetalles = new TextBlock { FontSize = 14, Background = Brushes.WhiteSmoke, Padding = new Thickness(15), MinHeight = 100 };
+            // Se agregó Foreground = Brushes.Black al ListBox
+            ListBox lstSugerencias = new ListBox { Height = 150, FontSize = 14, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
+            
+            // Se agregó Foreground = Brushes.Black al TextBlock de detalles
+            TextBlock txtDetalles = new TextBlock { FontSize = 14, Background = Brushes.WhiteSmoke, Padding = new Thickness(15), MinHeight = 100, Foreground = Brushes.Black };
 
             txtBuscar.TextChanged += (s, e) => {
                 lstSugerencias.Items.Clear();
