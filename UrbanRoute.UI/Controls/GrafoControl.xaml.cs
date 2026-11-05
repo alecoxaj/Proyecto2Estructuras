@@ -1,35 +1,54 @@
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using UrbanRoute.UI.Servicios;
 
-using Path = System.IO.Path;
+// Evita el conflicto entre System.IO.Path
+// y System.Windows.Shapes.Path.
+using RutaArchivo = System.IO.Path;
+
 namespace UrbanRoute.UI.Controls
 {
-    // Visualizador dinámico de la red de transporte.
-    // Dibuja las paradas y conexiones cargadas desde CSV.
+    // Control gráfico que representa la red de transporte.
+    // Carga paradas y conexiones desde archivos CSV.
+    // También anima las rutas calculadas con Dijkstra.
     public partial class GrafoControl : UserControl
     {
+        // Dimensiones del área de dibujo.
         private const double AnchoLienzo = 1000;
         private const double AltoLienzo = 760;
 
-        // Nivel de ampliación de la representación.
+        // Nivel de ampliación del grafo.
         private double zoom = 1.0;
 
-        // Evita cargar dos veces al inicializar.
+        // Evita cargar dos veces durante la inicialización.
         private bool inicializado = false;
 
-        // Almacena las posiciones visuales de las paradas.
+        // Guarda las posiciones de los nodos.
         private readonly Dictionary<string, Point> posiciones =
             new(StringComparer.OrdinalIgnoreCase);
 
-        // Representa una conexión del archivo rutas.csv.
+        // Guarda los círculos dibujados.
+        private readonly Dictionary<string, Ellipse> nodosVisuales =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        // Guarda las conexiones dibujadas.
+        private readonly List<ConexionVisual> conexionesVisuales =
+            new();
+
+        // Permite cancelar una animación anterior.
+        private CancellationTokenSource? cancelacionRuta;
+
+        // Representa una ruta leída desde el CSV.
         private sealed class RutaVisual
         {
             public string Origen { get; set; } = "";
@@ -39,12 +58,26 @@ namespace UrbanRoute.UI.Controls
             public bool UnSoloSentido { get; set; }
         }
 
+        // Representa los elementos gráficos de una conexión.
+        private sealed class ConexionVisual
+        {
+            public string Origen { get; set; } = "";
+            public string Destino { get; set; } = "";
+            public bool UnSoloSentido { get; set; }
+
+            public Line Linea { get; set; } = new();
+
+            // Las rutas de un solo sentido incluyen flechas.
+            public List<Line> Flechas { get; } = new();
+        }
+
+        // Constructor del control.
         public GrafoControl()
         {
             InitializeComponent();
         }
 
-        // Carga inicialmente el grafo cuando aparece el control.
+        // Carga los registros cuando aparece el control.
         private void GrafoControl_Loaded(
             object sender,
             RoutedEventArgs e)
@@ -56,47 +89,60 @@ namespace UrbanRoute.UI.Controls
             }
         }
 
-        // Vuelve a leer los archivos CSV y actualiza el dibujo.
+        // =========================================
+        // CARGA DEL GRAFO DESDE CSV
+        // =========================================
+
         public void Recargar()
         {
+            // Detiene cualquier animación en ejecución.
+            cancelacionRuta?.Cancel();
+
             try
             {
-                string rutaParadas = ArchivoParadas.ObtenerRuta();
+                // Obtiene la ruta de paradas.csv.
+                string rutaParadas =
+                    ArchivoParadas.ObtenerRuta();
 
-                // Busca rutas.csv junto al archivo de paradas.
-                string carpeta = Path.GetDirectoryName(
-                    rutaParadas
-                ) ?? "";
+                string carpeta =
+                    RutaArchivo.GetDirectoryName(rutaParadas)
+                    ?? "";
 
-                string rutaRutas = Path.Combine(
+                // Busca rutas.csv en la misma carpeta.
+                string rutaRutas = RutaArchivo.Combine(
                     carpeta,
                     "rutas.csv"
                 );
 
-                // También admite el CSV copiado al proyecto WPF.
+                // Alternativa: carpeta de salida WPF.
                 if (!File.Exists(rutaRutas))
                 {
-                    rutaRutas = Path.Combine(
+                    rutaRutas = RutaArchivo.Combine(
                         AppContext.BaseDirectory,
                         "Datos",
                         "rutas.csv"
                     );
                 }
 
+                // Verifica ambos archivos.
                 if (!File.Exists(rutaParadas) ||
                     !File.Exists(rutaRutas))
                 {
-                    Lienzo.Children.Clear();
+                    LimpiarDibujo();
+
                     TxtResumen.Text =
-                        "No se encontraron paradas.csv o rutas.csv.";
+                        "No se encontraron los archivos CSV.";
+
                     return;
                 }
 
-                // Carga los códigos y nombres de las paradas.
+                // Diccionario de códigos y nombres.
                 Dictionary<string, string> paradas =
                     new(StringComparer.OrdinalIgnoreCase);
 
-                foreach (string linea in File.ReadLines(rutaParadas).Skip(1))
+                // Carga las paradas.
+                foreach (string linea in
+                         File.ReadLines(rutaParadas).Skip(1))
                 {
                     if (string.IsNullOrWhiteSpace(linea))
                         continue;
@@ -106,7 +152,10 @@ namespace UrbanRoute.UI.Controls
                     if (campos.Length < 4)
                         continue;
 
-                    string codigo = campos[0].Trim().ToUpperInvariant();
+                    string codigo = campos[0]
+                        .Trim()
+                        .ToUpperInvariant();
+
                     string nombre = campos[1].Trim();
 
                     if (codigo.Length == 0 ||
@@ -116,10 +165,12 @@ namespace UrbanRoute.UI.Controls
                     paradas.Add(codigo, nombre);
                 }
 
-                // Carga las conexiones del CSV.
+                // Lista de conexiones.
                 List<RutaVisual> rutas = new();
 
-                foreach (string linea in File.ReadLines(rutaRutas).Skip(1))
+                // Carga las rutas del segundo CSV.
+                foreach (string linea in
+                         File.ReadLines(rutaRutas).Skip(1))
                 {
                     if (string.IsNullOrWhiteSpace(linea))
                         continue;
@@ -129,31 +180,39 @@ namespace UrbanRoute.UI.Controls
                     if (campos.Length < 5)
                         continue;
 
-                    string origen = campos[0].Trim().ToUpperInvariant();
-                    string destino = campos[1].Trim().ToUpperInvariant();
+                    string origen = campos[0]
+                        .Trim()
+                        .ToUpperInvariant();
 
-                    // Evita conexiones a paradas inexistentes.
+                    string destino = campos[1]
+                        .Trim()
+                        .ToUpperInvariant();
+
+                    // Verifica que existan ambas paradas.
                     if (!paradas.ContainsKey(origen) ||
                         !paradas.ContainsKey(destino))
                         continue;
 
+                    // Convierte el tiempo.
                     if (!double.TryParse(
-                            campos[2].Trim(),
-                            NumberStyles.Float,
-                            CultureInfo.InvariantCulture,
-                            out double tiempo))
+                        campos[2].Trim(),
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out double tiempo))
                         continue;
 
+                    // Convierte el costo.
                     if (!double.TryParse(
-                            campos[3].Trim(),
-                            NumberStyles.Float,
-                            CultureInfo.InvariantCulture,
-                            out double costo))
+                        campos[3].Trim(),
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out double costo))
                         continue;
 
+                    // Identifica el sentido de la ruta.
                     if (!bool.TryParse(
-                            campos[4].Trim(),
-                            out bool unSoloSentido))
+                        campos[4].Trim(),
+                        out bool unSoloSentido))
                         continue;
 
                     rutas.Add(new RutaVisual
@@ -166,7 +225,7 @@ namespace UrbanRoute.UI.Controls
                     });
                 }
 
-                // Construye el grafo visual.
+                // Dibuja la red completa.
                 Dibujar(paradas, rutas);
 
                 TxtResumen.Text =
@@ -177,13 +236,27 @@ namespace UrbanRoute.UI.Controls
                 error is IOException ||
                 error is UnauthorizedAccessException)
             {
-                Lienzo.Children.Clear();
+                LimpiarDibujo();
+
                 TxtResumen.Text =
                     $"Error al cargar el grafo: {error.Message}";
             }
         }
 
-        // Calcula la distribución visual de las paradas.
+        // Elimina los elementos visuales anteriores.
+        private void LimpiarDibujo()
+        {
+            Lienzo.Children.Clear();
+
+            posiciones.Clear();
+            nodosVisuales.Clear();
+            conexionesVisuales.Clear();
+        }
+
+        // =========================================
+        // DISTRIBUCIÓN DE PARADAS
+        // =========================================
+
         private void DistribuirParadas(string[] codigos)
         {
             posiciones.Clear();
@@ -193,11 +266,10 @@ namespace UrbanRoute.UI.Controls
             if (total == 0)
                 return;
 
-            // Centro del dibujo.
             double centroX = AnchoLienzo / 2;
             double centroY = AltoLienzo / 2;
 
-            // Distribuye el 60 % en un círculo exterior.
+            // Distribuye los nodos en dos niveles.
             int exteriores = total <= 10
                 ? total
                 : (int)Math.Ceiling(total * 0.60);
@@ -219,32 +291,44 @@ namespace UrbanRoute.UI.Controls
                 double desfase = exterior ? 0 : 0.5;
 
                 double angulo = -Math.PI / 2 +
-                    2 * Math.PI * (indice + desfase) / cantidad;
+                    2 * Math.PI *
+                    (indice + desfase) / cantidad;
 
                 double radioX = exterior ? 405 : 245;
                 double radioY = exterior ? 310 : 185;
 
-                // Para un único conjunto de pocos nodos,
-                // mantiene la distribución circular.
-                double x = centroX + Math.Cos(angulo) * radioX;
-                double y = centroY + Math.Sin(angulo) * radioY;
+                double x = centroX +
+                    Math.Cos(angulo) * radioX;
+
+                double y = centroY +
+                    Math.Sin(angulo) * radioY;
 
                 posiciones[codigos[i]] = new Point(x, y);
             }
         }
 
-        // Dibuja todas las conexiones y luego las paradas.
+        // =========================================
+        // DIBUJO GENERAL
+        // =========================================
+
         private void Dibujar(
             Dictionary<string, string> paradas,
             List<RutaVisual> rutas)
         {
-            Lienzo.Children.Clear();
+            cancelacionRuta?.Cancel();
 
-            // Mantiene los códigos en orden alfabético.
+            // Limpia la red anterior.
+            LimpiarDibujo();
+
+            // Ordena los códigos.
             string[] codigos = paradas.Keys
-                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(
+                    c => c,
+                    StringComparer.OrdinalIgnoreCase
+                )
                 .ToArray();
 
+            // Calcula las posiciones.
             DistribuirParadas(codigos);
 
             // Primero dibuja las conexiones.
@@ -253,16 +337,22 @@ namespace UrbanRoute.UI.Controls
                 DibujarConexion(ruta);
             }
 
-            // Después dibuja los nodos encima de las líneas.
+            // Después coloca los nodos encima.
             foreach (string codigo in codigos)
             {
-                DibujarParada(codigo, paradas[codigo]);
+                DibujarParada(
+                    codigo,
+                    paradas[codigo]
+                );
             }
 
             ActualizarEscala();
         }
 
-        // Dibuja una conexión entre dos paradas.
+        // =========================================
+        // DIBUJAR CONEXIONES
+        // =========================================
+
         private void DibujarConexion(RutaVisual ruta)
         {
             Point origen = posiciones[ruta.Origen];
@@ -271,16 +361,17 @@ namespace UrbanRoute.UI.Controls
             double dx = destino.X - origen.X;
             double dy = destino.Y - origen.Y;
 
-            double distancia = Math.Sqrt(dx * dx + dy * dy);
+            double distancia = Math.Sqrt(
+                dx * dx + dy * dy
+            );
 
             if (distancia < 1)
                 return;
 
-            // Vector unitario de la conexión.
             double ux = dx / distancia;
             double uy = dy / distancia;
 
-            // Evita dibujar la línea encima de los círculos.
+            // Evita dibujar sobre los círculos.
             Point inicio = new(
                 origen.X + ux * 28,
                 origen.Y + uy * 28
@@ -292,9 +383,14 @@ namespace UrbanRoute.UI.Controls
             );
 
             Brush color = ruta.UnSoloSentido
-                ? new SolidColorBrush(Color.FromRgb(251, 191, 116))
-                : new SolidColorBrush(Color.FromRgb(89, 168, 248));
+                ? new SolidColorBrush(
+                    Color.FromRgb(251, 191, 116)
+                )
+                : new SolidColorBrush(
+                    Color.FromRgb(89, 168, 248)
+                );
 
+            // Dibuja la línea principal.
             Line linea = new()
             {
                 X1 = inicio.X,
@@ -304,6 +400,7 @@ namespace UrbanRoute.UI.Controls
                 Stroke = color,
                 StrokeThickness = 2.5,
                 Opacity = 0.75,
+
                 ToolTip =
                     $"{ruta.Origen} → {ruta.Destino}\n" +
                     $"Tiempo: {ruta.Tiempo} min\n" +
@@ -315,23 +412,32 @@ namespace UrbanRoute.UI.Controls
 
             Lienzo.Children.Add(linea);
 
-            // Agrega una flecha cuando la ruta es de un solo sentido.
+            // Registra la conexión para futuras animaciones.
+            ConexionVisual conexion = new()
+            {
+                Origen = ruta.Origen,
+                Destino = ruta.Destino,
+                UnSoloSentido = ruta.UnSoloSentido,
+                Linea = linea
+            };
+
+            // Dibuja una flecha en rutas unidireccionales.
             if (ruta.UnSoloSentido)
             {
-                double largoFlecha = 12;
-                double anchoFlecha = 7;
+                double largo = 12;
+                double ancho = 7;
 
                 Point ala1 = new(
-                    fin.X - ux * largoFlecha - uy * anchoFlecha,
-                    fin.Y - uy * largoFlecha + ux * anchoFlecha
+                    fin.X - ux * largo - uy * ancho,
+                    fin.Y - uy * largo + ux * ancho
                 );
 
                 Point ala2 = new(
-                    fin.X - ux * largoFlecha + uy * anchoFlecha,
-                    fin.Y - uy * largoFlecha - ux * anchoFlecha
+                    fin.X - ux * largo + uy * ancho,
+                    fin.Y - uy * largo - ux * ancho
                 );
 
-                Lienzo.Children.Add(new Line
+                Line flecha1 = new()
                 {
                     X1 = fin.X,
                     Y1 = fin.Y,
@@ -339,9 +445,9 @@ namespace UrbanRoute.UI.Controls
                     Y2 = ala1.Y,
                     Stroke = color,
                     StrokeThickness = 2.5
-                });
+                };
 
-                Lienzo.Children.Add(new Line
+                Line flecha2 = new()
                 {
                     X1 = fin.X,
                     Y1 = fin.Y,
@@ -349,36 +455,65 @@ namespace UrbanRoute.UI.Controls
                     Y2 = ala2.Y,
                     Stroke = color,
                     StrokeThickness = 2.5
-                });
+                };
+
+                Lienzo.Children.Add(flecha1);
+                Lienzo.Children.Add(flecha2);
+
+                // También registra las flechas.
+                conexion.Flechas.Add(flecha1);
+                conexion.Flechas.Add(flecha2);
             }
+
+            conexionesVisuales.Add(conexion);
         }
 
-        // Dibuja el círculo y código de una parada.
-        private void DibujarParada(string codigo, string nombre)
+        // =========================================
+        // DIBUJAR NODOS
+        // =========================================
+
+        private void DibujarParada(
+            string codigo,
+            string nombre)
         {
             Point punto = posiciones[codigo];
 
             const double diametro = 56;
 
+            // Círculo de la parada.
             Ellipse circulo = new()
             {
                 Width = diametro,
                 Height = diametro,
+
                 Fill = new SolidColorBrush(
                     Color.FromRgb(37, 62, 91)
                 ),
+
                 Stroke = new SolidColorBrush(
                     Color.FromRgb(96, 165, 250)
                 ),
+
                 StrokeThickness = 2.5,
                 ToolTip = $"{codigo} - {nombre}"
             };
 
-            Canvas.SetLeft(circulo, punto.X - diametro / 2);
-            Canvas.SetTop(circulo, punto.Y - diametro / 2);
+            Canvas.SetLeft(
+                circulo,
+                punto.X - diametro / 2
+            );
+
+            Canvas.SetTop(
+                circulo,
+                punto.Y - diametro / 2
+            );
 
             Lienzo.Children.Add(circulo);
 
+            // Guarda el nodo para cambiar sus colores.
+            nodosVisuales[codigo] = circulo;
+
+            // Código dentro del círculo.
             TextBlock texto = new()
             {
                 Text = codigo,
@@ -391,13 +526,243 @@ namespace UrbanRoute.UI.Controls
                 ToolTip = $"{codigo} - {nombre}"
             };
 
-            Canvas.SetLeft(texto, punto.X - diametro / 2);
-            Canvas.SetTop(texto, punto.Y - 9);
+            Canvas.SetLeft(
+                texto,
+                punto.X - diametro / 2
+            );
+
+            Canvas.SetTop(
+                texto,
+                punto.Y - 9
+            );
 
             Lienzo.Children.Add(texto);
         }
 
-        // Ajusta la escala según el tamaño del panel.
+        // =========================================
+        // ANIMACIÓN DE DIJKSTRA
+        // =========================================
+
+        // Ilumina progresivamente las paradas y conexiones
+        // correspondientes a la ruta óptima.
+        public async Task AnimarRutaAsync(string[] camino)
+        {
+            // Cancela cualquier animación anterior.
+            cancelacionRuta?.Cancel();
+
+            // Limpia los colores de rutas anteriores.
+            RestaurarColores();
+
+            if (camino == null || camino.Length == 0)
+                return;
+
+            CancellationTokenSource actual = new();
+
+            cancelacionRuta = actual;
+
+            try
+            {
+                // Recorre el camino calculado por Dijkstra.
+                for (int i = 0; i < camino.Length; i++)
+                {
+                    actual.Token.ThrowIfCancellationRequested();
+
+                    string codigo = camino[i]
+                        .Trim()
+                        .ToUpperInvariant();
+
+                    // Resalta el nodo actual.
+                    if (nodosVisuales.TryGetValue(
+                        codigo,
+                        out Ellipse? nodo))
+                    {
+                        nodo.Fill = Brushes.LimeGreen;
+                        nodo.Stroke = Brushes.White;
+                        nodo.StrokeThickness = 3.5;
+                    }
+
+                    // Desde el segundo nodo, ilumina la arista.
+                    if (i > 0)
+                    {
+                        string anterior = camino[i - 1]
+                            .Trim()
+                            .ToUpperInvariant();
+
+                        foreach (ConexionVisual conexion
+                                 in conexionesVisuales)
+                        {
+                            // Conexión en dirección original.
+                            bool directo =
+                                conexion.Origen.Equals(
+                                    anterior,
+                                    StringComparison.OrdinalIgnoreCase
+                                ) &&
+                                conexion.Destino.Equals(
+                                    codigo,
+                                    StringComparison.OrdinalIgnoreCase
+                                );
+
+                            // Solo permite recorrer al revés
+                            // cuando la conexión es bidireccional.
+                            bool inverso =
+                                !conexion.UnSoloSentido &&
+                                conexion.Origen.Equals(
+                                    codigo,
+                                    StringComparison.OrdinalIgnoreCase
+                                ) &&
+                                conexion.Destino.Equals(
+                                    anterior,
+                                    StringComparison.OrdinalIgnoreCase
+                                );
+
+                            if (directo || inverso)
+                            {
+                                // Ilumina la línea principal.
+                                conexion.Linea.Stroke =
+                                    Brushes.LimeGreen;
+
+                                conexion.Linea.StrokeThickness = 5;
+                                conexion.Linea.Opacity = 1;
+
+                                // También ilumina las flechas.
+                                foreach (Line flecha
+                                         in conexion.Flechas)
+                                {
+                                    flecha.Stroke =
+                                        Brushes.LimeGreen;
+
+                                    flecha.StrokeThickness = 4;
+                                    flecha.Opacity = 1;
+                                }
+                            }
+                        }
+                    }
+
+                    // Centra la vista en la parada visitada.
+                    CentrarEnParada(codigo);
+
+                    // Pausa entre pasos sin congelar la ventana.
+                    await Task.Delay(
+                        600,
+                        actual.Token
+                    );
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Una nueva ruta cancela la animación anterior.
+            }
+            finally
+            {
+                // Solo limpia la referencia si sigue
+                // perteneciendo a esta animación.
+                if (ReferenceEquals(cancelacionRuta, actual))
+                {
+                    cancelacionRuta = null;
+                }
+
+                actual.Dispose();
+            }
+        }
+
+        // =========================================
+        // RESTAURAR COLORES
+        // =========================================
+
+        private void RestaurarColores()
+        {
+            // Restaura todos los nodos.
+            foreach (Ellipse nodo in nodosVisuales.Values)
+            {
+                nodo.Fill = new SolidColorBrush(
+                    Color.FromRgb(37, 62, 91)
+                );
+
+                nodo.Stroke = new SolidColorBrush(
+                    Color.FromRgb(96, 165, 250)
+                );
+
+                nodo.StrokeThickness = 2.5;
+            }
+
+            // Restaura todas las conexiones.
+            foreach (ConexionVisual conexion
+                     in conexionesVisuales)
+            {
+                Brush color = conexion.UnSoloSentido
+                    ? new SolidColorBrush(
+                        Color.FromRgb(251, 191, 116)
+                    )
+                    : new SolidColorBrush(
+                        Color.FromRgb(89, 168, 248)
+                    );
+
+                conexion.Linea.Stroke = color;
+                conexion.Linea.StrokeThickness = 2.5;
+                conexion.Linea.Opacity = 0.75;
+
+                foreach (Line flecha in conexion.Flechas)
+                {
+                    flecha.Stroke = color;
+                    flecha.StrokeThickness = 2.5;
+                    flecha.Opacity = 0.75;
+                }
+            }
+        }
+
+        // Elimina el recorrido resaltado.
+        public void LimpiarAnimacion()
+        {
+            cancelacionRuta?.Cancel();
+
+            RestaurarColores();
+        }
+
+        // =========================================
+        // CENTRAR LA VISTA EN UNA PARADA
+        // =========================================
+
+        private void CentrarEnParada(string codigo)
+        {
+            if (!posiciones.TryGetValue(
+                codigo,
+                out Point posicion))
+                return;
+
+            // Calcula la escala actual del visualizador.
+            double escalaX =
+                EscalaVista.ActualWidth / AnchoLienzo;
+
+            double escalaY =
+                EscalaVista.ActualHeight / AltoLienzo;
+
+            if (escalaX <= 0 || escalaY <= 0)
+                return;
+
+            // Calcula el desplazamiento horizontal.
+            double desplazamientoX =
+                posicion.X * escalaX -
+                ScrollGrafo.ViewportWidth / 2;
+
+            // Calcula el desplazamiento vertical.
+            double desplazamientoY =
+                posicion.Y * escalaY -
+                ScrollGrafo.ViewportHeight / 2;
+
+            // Desplaza la vista.
+            ScrollGrafo.ScrollToHorizontalOffset(
+                Math.Max(0, desplazamientoX)
+            );
+
+            ScrollGrafo.ScrollToVerticalOffset(
+                Math.Max(0, desplazamientoY)
+            );
+        }
+
+        // =========================================
+        // ZOOM DEL GRAFO
+        // =========================================
+
         private void ActualizarEscala()
         {
             if (ScrollGrafo.ActualWidth < 60 ||
@@ -419,11 +784,14 @@ namespace UrbanRoute.UI.Controls
                 alto / AltoLienzo
             );
 
-            EscalaVista.Width = AnchoLienzo * escalaBase * zoom;
-            EscalaVista.Height = AltoLienzo * escalaBase * zoom;
+            EscalaVista.Width =
+                AnchoLienzo * escalaBase * zoom;
+
+            EscalaVista.Height =
+                AltoLienzo * escalaBase * zoom;
         }
 
-        // Ajusta el dibujo si cambia el tamaño de la ventana.
+        // Actualiza el tamaño si cambia la ventana.
         private void ScrollGrafo_SizeChanged(
             object sender,
             SizeChangedEventArgs e)
@@ -431,30 +799,39 @@ namespace UrbanRoute.UI.Controls
             ActualizarEscala();
         }
 
-        // Amplía la visualización.
+        // Acercar.
         private void Mas_Click(
             object sender,
             RoutedEventArgs e)
         {
-            zoom = Math.Min(3.0, zoom * 1.35);
+            zoom = Math.Min(
+                3.0,
+                zoom * 1.35
+            );
+
             ActualizarEscala();
         }
 
-        // Reduce la visualización.
+        // Alejar.
         private void Menos_Click(
             object sender,
             RoutedEventArgs e)
         {
-            zoom = Math.Max(1.0, zoom / 1.35);
+            zoom = Math.Max(
+                1.0,
+                zoom / 1.35
+            );
+
             ActualizarEscala();
         }
 
-        // Ajusta todas las paradas al espacio disponible.
+        // Ajustar el grafo al panel.
         private void Ajustar_Click(
             object sender,
             RoutedEventArgs e)
         {
             zoom = 1.0;
+
             ActualizarEscala();
 
             ScrollGrafo.ScrollToHome();

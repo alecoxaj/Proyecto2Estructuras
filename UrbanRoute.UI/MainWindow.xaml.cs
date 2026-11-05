@@ -8,41 +8,43 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+
 using Proyecto2Estructuras.Datos;
 using Proyecto2Estructuras.Estructuras;
 using Proyecto2Estructuras.Modelos;
+
 using UrbanRoute.UI.Servicios;
 using UrbanRoute.UI.Views;
 
 namespace UrbanRoute.UI
 {
-    // Ventana principal de UrbanRoute.
-    // Integra las estructuras de datos con la interfaz WPF.
+    // Ventana principal del sistema UrbanRoute.
+    // Integra la interfaz WPF con las estructuras de datos.
     public partial class MainWindow : Window
     {
-        // Criterio seleccionado para Dijkstra.
+        // Criterio de optimización de Dijkstra.
         private string criterioActual = "Tiempo";
 
         // Pantalla de administración de paradas.
         private ParadasPage? paginaParadas;
 
-        // Estructuras principales del proyecto.
+        // Estructuras principales del sistema.
         private TablaHash tabla = new TablaHash(67);
         private Grafo grafo = new Grafo();
         private AlgoritmosGrafo? algoritmos;
         private ConectividadParadas? conectividad;
         private TrieParadas trie = new TrieParadas();
 
-        // Constructor de la ventana.
+        // Constructor principal.
         public MainWindow()
         {
             InitializeComponent();
 
-            // Carga los datos al iniciar UrbanRoute.
+            // Carga las estructuras desde los archivos CSV.
             CargarParadasDesdeCsv();
         }
 
-        // Clase auxiliar para los selectores de paradas.
+        // Representación de las paradas en los ComboBox.
         private sealed class ParadaItem
         {
             public string Codigo { get; }
@@ -60,32 +62,34 @@ namespace UrbanRoute.UI
             }
         }
 
-        // ========================================
-        // CARGA DE PARADAS Y RUTAS
-        // ========================================
+        // ==========================================
+        // CARGA DE PARADAS Y RUTAS DESDE CSV
+        // ==========================================
 
         private void CargarParadasDesdeCsv()
         {
             try
             {
-                // Obtiene la ruta del CSV de paradas.
-                string rutaParadas = ArchivoParadas.ObtenerRuta();
+                string rutaParadas =
+                    ArchivoParadas.ObtenerRuta();
 
                 if (!File.Exists(rutaParadas))
                 {
                     TxtCantidadParadas.Text = "0";
+
                     TxtResultado.Text =
-                        "No se encontró paradas.csv.";
+                        "No se encontró el archivo paradas.csv.";
+
                     return;
                 }
 
-                // Calcula la capacidad según los registros.
-                // Admite los 30 registros obligatorios.
+                // Determina la capacidad necesaria.
                 int registros = File.ReadLines(rutaParadas)
                     .Skip(1)
                     .Count(linea =>
                         !string.IsNullOrWhiteSpace(linea));
 
+                // Capacidad suficiente para las 30 paradas.
                 int capacidad = Math.Max(
                     67,
                     registros * 2 + 1
@@ -94,37 +98,40 @@ namespace UrbanRoute.UI
                 // Reconstruye la Tabla Hash.
                 tabla = new TablaHash(capacidad);
 
+                // Carga las paradas desde CSV.
                 CargadorParadas.Cargar(
                     rutaParadas,
                     tabla
                 );
 
-                // Obtiene las paradas almacenadas.
-                Parada[] paradasCargadas =
+                // Obtiene los registros cargados.
+                Parada[] paradas =
                     tabla.ObtenerParadas();
 
-                // Inicializa las demás estructuras.
+                // Inicializa Union-Find.
                 conectividad =
-                    new ConectividadParadas(paradasCargadas);
+                    new ConectividadParadas(paradas);
 
-                grafo = new Grafo(paradasCargadas);
+                // Inicializa el Grafo.
+                grafo = new Grafo(paradas);
 
+                // Inicializa los algoritmos.
                 algoritmos = new AlgoritmosGrafo(grafo);
 
+                // Inicializa Trie.
                 trie = new TrieParadas();
-                trie.CargarParadas(paradasCargadas);
+                trie.CargarParadas(paradas);
 
-                // Busca el archivo de rutas.
-                string carpeta = Path.GetDirectoryName(
-                    rutaParadas
-                ) ?? "";
+                // Busca el archivo rutas.csv.
+                string carpeta =
+                    Path.GetDirectoryName(rutaParadas) ?? "";
 
                 string rutaRutas = Path.Combine(
                     carpeta,
                     "rutas.csv"
                 );
 
-                // Utiliza la copia de salida si es necesario.
+                // Si no existe, busca la copia de WPF.
                 if (!File.Exists(rutaRutas))
                 {
                     rutaRutas = Path.Combine(
@@ -134,7 +141,7 @@ namespace UrbanRoute.UI
                     );
                 }
 
-                // Carga las conexiones del Grafo.
+                // Carga las conexiones y actualiza Union-Find.
                 if (File.Exists(rutaRutas))
                 {
                     CargadorRutas.Cargar(
@@ -144,17 +151,9 @@ namespace UrbanRoute.UI
                     );
                 }
 
-                // Actualiza el contador.
-                TxtCantidadParadas.Text =
-                    paradasCargadas.Length.ToString();
-
-                // Prepara las opciones de origen y destino.
-                CmbOrigen.Items.Clear();
-                CmbDestino.Items.Clear();
-
                 // Ordena las paradas por código.
                 Array.Sort(
-                    paradasCargadas,
+                    paradas,
                     (a, b) => string.Compare(
                         a.Codigo,
                         b.Codigo,
@@ -162,7 +161,16 @@ namespace UrbanRoute.UI
                     )
                 );
 
-                foreach (Parada parada in paradasCargadas)
+                // Actualiza el contador del dashboard.
+                TxtCantidadParadas.Text =
+                    paradas.Length.ToString();
+
+                // Limpia los ComboBox.
+                CmbOrigen.Items.Clear();
+                CmbDestino.Items.Clear();
+
+                // Carga las paradas disponibles.
+                foreach (Parada parada in paradas)
                 {
                     ParadaItem item = new ParadaItem(
                         parada.Codigo,
@@ -173,17 +181,18 @@ namespace UrbanRoute.UI
                     CmbDestino.Items.Add(item);
                 }
 
-                if (paradasCargadas.Length > 0)
+                // Selecciones iniciales.
+                if (paradas.Length > 0)
                     CmbOrigen.SelectedIndex = 0;
 
-                if (paradasCargadas.Length > 1)
+                if (paradas.Length > 1)
                     CmbDestino.SelectedIndex = 1;
 
                 TxtResultado.Text = File.Exists(rutaRutas)
                     ? "Resultado: pendiente"
                     : "No se encontró rutas.csv.";
 
-                // Actualiza el visualizador dinámico.
+                // Actualiza el dibujo de la red.
                 VisualizadorGrafo.Recargar();
             }
             catch (Exception error) when (
@@ -191,14 +200,16 @@ namespace UrbanRoute.UI
                 error is UnauthorizedAccessException ||
                 error is FormatException)
             {
+                TxtCantidadParadas.Text = "—";
+
                 TxtResultado.Text =
                     $"Error al cargar datos: {error.Message}";
             }
         }
 
-        // ========================================
-        // NAVEGACIÓN
-        // ========================================
+        // ==========================================
+        // NAVEGACIÓN DEL MENÚ LATERAL
+        // ==========================================
 
         private void Navegacion_Click(
             object sender,
@@ -207,6 +218,7 @@ namespace UrbanRoute.UI
             if (sender is not Button seleccionado)
                 return;
 
+            // Botones del menú.
             Button[] botones =
             {
                 BtnInicio,
@@ -218,21 +230,24 @@ namespace UrbanRoute.UI
                 BtnPruebas
             };
 
-            // Restablece los colores de navegación.
+            // Restablece el estilo de navegación.
             foreach (Button boton in botones)
             {
                 boton.Background = Brushes.Transparent;
-                boton.Foreground = new SolidColorBrush(
-                    Color.FromRgb(201, 214, 231)
-                );
+
+                boton.Foreground =
+                    new SolidColorBrush(
+                        Color.FromRgb(201, 214, 231)
+                    );
 
                 boton.FontWeight = FontWeights.Normal;
             }
 
             // Resalta el botón seleccionado.
-            seleccionado.Background = new SolidColorBrush(
-                Color.FromRgb(34, 66, 115)
-            );
+            seleccionado.Background =
+                new SolidColorBrush(
+                    Color.FromRgb(34, 66, 115)
+                );
 
             seleccionado.Foreground = Brushes.White;
             seleccionado.FontWeight = FontWeights.SemiBold;
@@ -243,15 +258,19 @@ namespace UrbanRoute.UI
             // VISTA GENERAL
             if (seccion == "Inicio")
             {
-                DashboardView.Visibility = Visibility.Visible;
-                SeccionView.Visibility = Visibility.Collapsed;
+                DashboardView.Visibility =
+                    Visibility.Visible;
 
-                // Recarga los datos del CSV y el grafo visual.
+                SeccionView.Visibility =
+                    Visibility.Collapsed;
+
+                // Recarga los datos y el grafo.
                 CargarParadasDesdeCsv();
 
                 return;
             }
 
+            // Muestra el contenido de las demás páginas.
             DashboardView.Visibility = Visibility.Collapsed;
             SeccionView.Visibility = Visibility.Visible;
 
@@ -265,6 +284,8 @@ namespace UrbanRoute.UI
                 {
                     paginaParadas = new ParadasPage();
 
+                    // Actualiza la vista general cuando cambian
+                    // los registros del CSV.
                     paginaParadas.ParadasActualizadas +=
                         CargarParadasDesdeCsv;
                 }
@@ -312,15 +333,16 @@ namespace UrbanRoute.UI
                         Visibility.Visible;
 
                     TxtSeccionTitulo.Text = seccion;
+
                     TxtSeccionDescripcion.Text =
                         "Funcionalidad en preparación.";
                     break;
             }
         }
 
-        // ========================================
-        // AUTOCOMPLETADO CON TRIE
-        // ========================================
+        // ==========================================
+        // AUTOCOMPLETADO MEDIANTE TRIE
+        // ==========================================
 
         private UIElement ConstruirVistaAutocompletado()
         {
@@ -364,14 +386,14 @@ namespace UrbanRoute.UI
             TextBlock txtDetalles = new TextBlock
             {
                 FontSize = 14,
-                Background = Brushes.WhiteSmoke,
                 Foreground = Brushes.Black,
+                Background = Brushes.WhiteSmoke,
                 Padding = new Thickness(15),
                 MinHeight = 100,
                 TextWrapping = TextWrapping.Wrap
             };
 
-            // Obtiene sugerencias conforme se escribe.
+            // Busca los nombres por prefijo.
             txtBuscar.TextChanged += (s, e) =>
             {
                 lstSugerencias.Items.Clear();
@@ -390,7 +412,7 @@ namespace UrbanRoute.UI
                 }
             };
 
-            // Localiza en Tabla Hash la parada seleccionada.
+            // Busca la parada seleccionada en Tabla Hash.
             lstSugerencias.SelectionChanged += (s, e) =>
             {
                 if (lstSugerencias.SelectedItem == null)
@@ -421,9 +443,9 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        // ========================================
+        // ==========================================
         // RECORRIDOS BFS Y DFS
-        // ========================================
+        // ==========================================
 
         private UIElement ConstruirVistaRecorridos()
         {
@@ -434,7 +456,7 @@ namespace UrbanRoute.UI
 
             panel.Children.Add(new TextBlock
             {
-                Text = "Recorridos de Grafo (BFS y DFS)",
+                Text = "Recorridos del Grafo (BFS y DFS)",
                 FontSize = 20,
                 FontWeight = FontWeights.Bold,
                 Foreground = Brushes.White,
@@ -443,7 +465,7 @@ namespace UrbanRoute.UI
 
             panel.Children.Add(new TextBlock
             {
-                Text = "Código de parada de inicio:",
+                Text = "Código de parada inicial:",
                 Foreground = Brushes.LightGray
             });
 
@@ -500,13 +522,15 @@ namespace UrbanRoute.UI
                 Background = Brushes.WhiteSmoke
             };
 
+            // Ejecutar BFS.
             btnBFS.Click += (s, e) =>
             {
                 if (algoritmos == null)
                     return;
 
-                string[] recorrido =
-                    algoritmos.BFS(txtInicio.Text.Trim());
+                string[] recorrido = algoritmos.BFS(
+                    txtInicio.Text.Trim().ToUpperInvariant()
+                );
 
                 txtResultados.Text = recorrido.Length > 0
                     ? "ORDEN DE VISITA BFS:\n\n" +
@@ -514,13 +538,15 @@ namespace UrbanRoute.UI
                     : "Parada no encontrada.";
             };
 
+            // Ejecutar DFS.
             btnDFS.Click += (s, e) =>
             {
                 if (algoritmos == null)
                     return;
 
-                string[] recorrido =
-                    algoritmos.DFS(txtInicio.Text.Trim());
+                string[] recorrido = algoritmos.DFS(
+                    txtInicio.Text.Trim().ToUpperInvariant()
+                );
 
                 txtResultados.Text = recorrido.Length > 0
                     ? "ORDEN DE VISITA DFS:\n\n" +
@@ -535,9 +561,9 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        // ========================================
+        // ==========================================
         // CONEXIONES Y UNION-FIND
-        // ========================================
+        // ==========================================
 
         private UIElement ConstruirVistaConexiones()
         {
@@ -555,7 +581,7 @@ namespace UrbanRoute.UI
                 Margin = new Thickness(0, 0, 0, 15)
             });
 
-            // FORMULARIO PARA AGREGAR RUTAS
+            // FORMULARIO PARA AGREGAR CONEXIONES
             StackPanel agregar = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -595,7 +621,7 @@ namespace UrbanRoute.UI
             agregar.Children.Add(btnAgregar);
             panel.Children.Add(agregar);
 
-            // FORMULARIO PARA ELIMINAR RUTAS
+            // FORMULARIO PARA ELIMINAR CONEXIONES
             StackPanel eliminar = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -649,10 +675,9 @@ namespace UrbanRoute.UI
             };
 
             ActualizarListaAdyacencia(lstGrafo);
-
             panel.Children.Add(lstGrafo);
 
-            // CONSULTA UNION-FIND
+            // CONSULTAS UNION-FIND
             panel.Children.Add(new TextBlock
             {
                 Text = "Conectividad mediante Union-Find",
@@ -694,7 +719,7 @@ namespace UrbanRoute.UI
             panelUF.Children.Add(resultadoUF);
             panel.Children.Add(panelUF);
 
-            // REGISTRAR CONEXIÓN
+            // AGREGAR CONEXIÓN
             btnAgregar.Click += (s, e) =>
             {
                 bool tiempoValido = double.TryParse(
@@ -711,11 +736,14 @@ namespace UrbanRoute.UI
                     out double c
                 );
 
-                if (!tiempoValido || !costoValido)
+                if (!tiempoValido || !costoValido ||
+                    t <= 0 || c < 0)
                 {
                     MessageBox.Show(
-                        "El tiempo y costo deben ser números con punto decimal."
+                        "Ingresa un tiempo mayor que cero y " +
+                        "un costo no negativo usando punto decimal."
                     );
+
                     return;
                 }
 
@@ -740,7 +768,8 @@ namespace UrbanRoute.UI
                 else
                 {
                     MessageBox.Show(
-                        "No se pudo agregar la conexión. Verifica los códigos."
+                        "No se pudo agregar la conexión. " +
+                        "Comprueba que las paradas existan."
                     );
                 }
             };
@@ -756,7 +785,9 @@ namespace UrbanRoute.UI
 
                 if (eliminada)
                 {
+                    // Reconstruye la conectividad.
                     SincronizarUnionFind();
+
                     ActualizarListaAdyacencia(lstGrafo);
 
                     oriDel.Clear();
@@ -770,7 +801,7 @@ namespace UrbanRoute.UI
                 }
             };
 
-            // COMPROBAR CONECTIVIDAD
+            // VERIFICAR CONECTIVIDAD
             btnUF.Click += (s, e) =>
             {
                 if (conectividad == null ||
@@ -780,19 +811,19 @@ namespace UrbanRoute.UI
                     resultadoUF.Text =
                         "Una o ambas paradas no existen.";
 
-                    resultadoUF.Foreground =
-                        Brushes.Orange;
+                    resultadoUF.Foreground = Brushes.Orange;
 
                     return;
                 }
 
-                bool conectadas = conectividad.EstanConectadas(
-                    uf1.Text,
-                    uf2.Text
-                );
+                bool conectadas =
+                    conectividad.EstanConectadas(
+                        uf1.Text,
+                        uf2.Text
+                    );
 
                 resultadoUF.Text = conectadas
-                    ? "Pertenecen al mismo conjunto."
+                    ? "Pertenecen al mismo conjunto conectado."
                     : "Pertenecen a conjuntos diferentes.";
 
                 resultadoUF.Foreground = conectadas
@@ -800,7 +831,7 @@ namespace UrbanRoute.UI
                     : Brushes.LightCoral;
             };
 
-            // Permite desplazarse por toda la pantalla.
+            // Desplazamiento vertical para toda la sección.
             ScrollViewer scroll = new ScrollViewer
             {
                 VerticalScrollBarVisibility =
@@ -813,7 +844,10 @@ namespace UrbanRoute.UI
             return scroll;
         }
 
-        // Crea un campo etiquetado para conexiones.
+        // ==========================================
+        // CREAR CAMPOS DE ENTRADA
+        // ==========================================
+
         private UIElement CrearCampoOpcion(
             string etiqueta,
             out TextBox textBox)
@@ -844,12 +878,17 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        // Actualiza la lista de adyacencia del Grafo.
-        private void ActualizarListaAdyacencia(ListBox lista)
+        // ==========================================
+        // MOSTRAR LISTA DE ADYACENCIA
+        // ==========================================
+
+        private void ActualizarListaAdyacencia(
+            ListBox lista)
         {
             lista.Items.Clear();
 
-            foreach (Vertice vertice in grafo.ObtenerVertices())
+            foreach (Vertice vertice
+                     in grafo.ObtenerVertices())
             {
                 string linea =
                     $"{vertice.Parada.Codigo} " +
@@ -876,7 +915,10 @@ namespace UrbanRoute.UI
             }
         }
 
-        // Reconstruye Union-Find después de eliminar rutas.
+        // ==========================================
+        // SINCRONIZAR UNION-FIND
+        // ==========================================
+
         private void SincronizarUnionFind()
         {
             conectividad = new ConectividadParadas(
@@ -892,9 +934,9 @@ namespace UrbanRoute.UI
             }
         }
 
-        // ========================================
-        // PANTALLA DEDICADA A DIJKSTRA
-        // ========================================
+        // ==========================================
+        // PANTALLA DE DIJKSTRA
+        // ==========================================
 
         private UIElement ConstruirVistaRutas()
         {
@@ -981,6 +1023,7 @@ namespace UrbanRoute.UI
                     resultados.Text = !rutaTiempo.Encontrada
                         ? rutaTiempo.Mensaje
                         : rutaCosto.Mensaje;
+
                     return;
                 }
 
@@ -1002,9 +1045,10 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        
-        // PRUEBAS ESPECIALES TABLA HASH
-        
+        // ==========================================
+        // PRUEBAS ESPECIALES DE TABLA HASH
+        // ==========================================
+
         private UIElement ConstruirVistaPruebasHash()
         {
             StackPanel panel = new StackPanel
@@ -1027,8 +1071,8 @@ namespace UrbanRoute.UI
                 Padding = new Thickness(15, 8, 15, 8),
                 Background = Brushes.SteelBlue,
                 Foreground = Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Left,
                 Cursor = Cursors.Hand,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 0, 15)
             };
 
@@ -1047,16 +1091,19 @@ namespace UrbanRoute.UI
 
             ejecutar.Click += (s, e) =>
             {
+                // Tabla de capacidad pequeña para las pruebas.
                 TablaHash prueba = new TablaHash(5);
 
                 Parada? p001 = tabla.Buscar("P001");
                 Parada? p006 = tabla.Buscar("P006");
                 Parada? p010 = tabla.Buscar("P010");
 
-                if (p001 == null || p006 == null || p010 == null)
+                if (p001 == null || p006 == null ||
+                    p010 == null)
                 {
                     resultados.Text =
                         "Faltan P001, P006 o P010 en el CSV.";
+
                     return;
                 }
 
@@ -1065,8 +1112,11 @@ namespace UrbanRoute.UI
 
                 bool duplicado = prueba.Insertar(p001);
 
-                bool buscar1 = prueba.Buscar("P001") != null;
-                bool buscar2 = prueba.Buscar("P006") != null;
+                bool buscar1 =
+                    prueba.Buscar("P001") != null;
+
+                bool buscar2 =
+                    prueba.Buscar("P006") != null;
 
                 bool eliminar = prueba.Eliminar("P001");
 
@@ -1076,7 +1126,7 @@ namespace UrbanRoute.UI
                 bool insertar3 = prueba.Insertar(p010);
 
                 resultados.Text =
-                    "--- PRUEBAS TABLA HASH ---\n\n" +
+                    "--- PRUEBAS DE TABLA HASH ---\n\n" +
                     $"Insertar P001: {insertar1}\n" +
                     $"Insertar P006: {insertar2}\n" +
                     $"Duplicado rechazado: {!duplicado}\n" +
@@ -1084,7 +1134,7 @@ namespace UrbanRoute.UI
                     $"Buscar P006: {buscar2}\n" +
                     $"Eliminar P001: {eliminar}\n" +
                     $"P006 sigue accesible: {sigueP006}\n" +
-                    $"Reutilizar posición con P010: {insertar3}\n";
+                    $"Insertar P010: {insertar3}\n";
             };
 
             panel.Children.Add(ejecutar);
@@ -1093,8 +1143,9 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        // SELECCIÓN DE TIEMPO O COSTO
-    
+        // ==========================================
+        // SELECCIÓN DE CRITERIO: TIEMPO O COSTO
+        // ==========================================
 
         private void Criterio_Click(
             object sender,
@@ -1108,12 +1159,14 @@ namespace UrbanRoute.UI
                     ? "Costo"
                     : "Tiempo";
 
+            // Actualiza botón Tiempo.
             BtnTiempo.Background = new SolidColorBrush(
                 criterioActual == "Tiempo"
                     ? Color.FromRgb(40, 101, 232)
                     : Color.FromRgb(41, 57, 79)
             );
 
+            // Actualiza botón Costo.
             BtnCosto.Background = new SolidColorBrush(
                 criterioActual == "Costo"
                     ? Color.FromRgb(40, 101, 232)
@@ -1121,11 +1174,11 @@ namespace UrbanRoute.UI
             );
         }
 
-       
-        // DIJKSTRA EN EL DASHBOARD
-      
+        // ==========================================
+        // CÁLCULO Y ANIMACIÓN DE DIJKSTRA
+        // ==========================================
 
-        private void CalcularRuta_Click(
+        private async void CalcularRuta_Click(
             object sender,
             RoutedEventArgs e)
         {
@@ -1134,6 +1187,9 @@ namespace UrbanRoute.UI
             {
                 TxtResultado.Text =
                     "Selecciona una parada de origen.";
+
+                VisualizadorGrafo.LimpiarAnimacion();
+
                 return;
             }
 
@@ -1142,6 +1198,9 @@ namespace UrbanRoute.UI
             {
                 TxtResultado.Text =
                     "Selecciona una parada de destino.";
+
+                VisualizadorGrafo.LimpiarAnimacion();
+
                 return;
             }
 
@@ -1150,22 +1209,30 @@ namespace UrbanRoute.UI
             {
                 TxtResultado.Text =
                     "Selecciona dos paradas diferentes.";
+
+                VisualizadorGrafo.LimpiarAnimacion();
+
                 return;
             }
 
+            // Comprueba que Dijkstra esté disponible.
             if (algoritmos == null)
             {
                 TxtResultado.Text =
                     "El Grafo no está inicializado.";
+
+                VisualizadorGrafo.LimpiarAnimacion();
+
                 return;
             }
 
-            // Define el criterio.
-            CriterioRuta criterio = criterioActual == "Tiempo"
-                ? CriterioRuta.Tiempo
-                : CriterioRuta.Costo;
+            // Obtiene el criterio seleccionado.
+            CriterioRuta criterio =
+                criterioActual == "Tiempo"
+                    ? CriterioRuta.Tiempo
+                    : CriterioRuta.Costo;
 
-            // Ejecuta Dijkstra.
+            // Ejecuta Dijkstra con el Grafo real.
             ResultadoRuta resultado = algoritmos.Dijkstra(
                 origen.Codigo,
                 destino.Codigo,
@@ -1173,28 +1240,41 @@ namespace UrbanRoute.UI
                 conectividad
             );
 
+            // Si existe una ruta óptima.
             if (resultado.Encontrada)
             {
+                // Muestra los resultados.
                 TxtResultado.Text =
-                    $"RUTA ÓPTIMA ({criterioActual.ToUpperInvariant()})\n" +
+                    $"RUTA ÓPTIMA ({criterioActual.ToUpperInvariant()})\n\n" +
                     $"Tiempo total: {resultado.TiempoTotal} min\n" +
                     $"Costo total: Q{resultado.CostoTotal:F2}\n\n" +
                     "ITINERARIO COMPLETO:\n" +
                     FormatearRutaConNombres(resultado.Camino);
+
+                // Lleva el resultado al inicio.
+                ScrollResultado.ScrollToTop();
+
+                // ANIMACIÓN:
+                // Resalta progresivamente los nodos y conexiones
+                // que forman la ruta óptima de Dijkstra.
+                await VisualizadorGrafo.AnimarRutaAsync(
+                    resultado.Camino
+                );
             }
             else
             {
+                // No existe una ruta.
                 TxtResultado.Text =
                     $"No se encontró ruta: {resultado.Mensaje}";
-            }
 
-            // Muestra el inicio del resultado.
-            // El usuario puede desplazarse para ver todo.
-            ScrollResultado.ScrollToTop();
+                // Limpia cualquier animación anterior.
+                VisualizadorGrafo.LimpiarAnimacion();
+            }
         }
 
-        // FORMATO DE RECORRIDOS
-    
+        // ==========================================
+        // FORMATO DEL ITINERARIO COMPLETO
+        // ==========================================
 
         private string FormatearRutaConNombres(
             string[] codigos)
@@ -1232,10 +1312,13 @@ namespace UrbanRoute.UI
                 }
             }
 
+            // Representa visualmente el recorrido.
             return string.Join("\n   ↓\n", pasos);
         }
 
-        // SALIR
+        // ==========================================
+        // SALIR DEL SISTEMA
+        // ==========================================
 
         private void Salir_Click(
             object sender,
