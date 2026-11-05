@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input; 
+using System.Windows.Input; // Requerido para Cursors.Hand
 using System.Windows.Media;
 using UrbanRoute.UI.Views;
 using UrbanRoute.UI.Servicios;
@@ -20,7 +20,9 @@ namespace UrbanRoute.UI
         private string criterioActual = "Tiempo";
         private ParadasPage? paginaParadas;
 
-        // Estructuras
+        // ====================================================================
+        // ESTRUCTURAS DE DATOS (Backend)
+        // ====================================================================
         private TablaHash tabla;
         private Grafo grafo;
         private AlgoritmosGrafo? algoritmos;
@@ -31,8 +33,8 @@ namespace UrbanRoute.UI
         {
             InitializeComponent();
 
-            // Inicializa las estructuras en memoria vacías
-            tabla = new TablaHash(17);
+            // AUMENTAMOS LA TABLA HASH A 47 PARA SOPORTAR LAS 30 PARADAS
+            tabla = new TablaHash(47);
             grafo = new Grafo();
             trie = new TrieParadas();
 
@@ -56,7 +58,9 @@ namespace UrbanRoute.UI
             }
         }
 
-        // carga
+        // ====================================================================
+        // CARGA DE DATOS
+        // ====================================================================
         private void CargarParadasDesdeCsv()
         {
             try
@@ -70,8 +74,8 @@ namespace UrbanRoute.UI
                     return;
                 }
 
-                // 1. CARGA EN ESTRUCTURAS BACKEND
-                tabla = new TablaHash(17); 
+                // 1. CARGA EN ESTRUCTURAS BACKEND (TAMAÑO 47)
+                tabla = new TablaHash(47); 
                 CargadorParadas.Cargar(rutaParadas, tabla);
                 
                 Parada[] paradasCargadas = tabla.ObtenerParadas();
@@ -119,7 +123,9 @@ namespace UrbanRoute.UI
             }
         }
 
-
+        // ====================================================================
+        // NAVEGACIÓN Y ENRUTAMIENTO DE VISTAS
+        // ====================================================================
         private void Navegacion_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button seleccionado) return;
@@ -207,7 +213,11 @@ namespace UrbanRoute.UI
             }
         }
 
-        // trie
+        // ====================================================================
+        // CONSTRUCTORES DINÁMICOS DE INTERFAZ (WPF vía C#)
+        // ====================================================================
+        
+        // 1. AUTOCOMPLETADO (Trie)
         private UIElement ConstruirVistaAutocompletado()
         {
             StackPanel panel = new StackPanel { Margin = new Thickness(20) };
@@ -215,15 +225,12 @@ namespace UrbanRoute.UI
             
             panel.Children.Add(new TextBlock { Text = "Escribe el nombre de la parada:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
             
-            // Se agregó Foreground = Brushes.Black al TextBox
+            // Textos en color negro para que resalten en el fondo claro
             TextBox txtBuscar = new TextBox { FontSize = 16, Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 10), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             panel.Children.Add(new TextBlock { Text = "Sugerencias en tiempo real:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            
-            // Se agregó Foreground = Brushes.Black al ListBox
             ListBox lstSugerencias = new ListBox { Height = 150, FontSize = 14, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
-            // Se agregó Foreground = Brushes.Black al TextBlock de detalles
             TextBlock txtDetalles = new TextBlock { FontSize = 14, Background = Brushes.WhiteSmoke, Padding = new Thickness(15), MinHeight = 100, Foreground = Brushes.Black };
 
             txtBuscar.TextChanged += (s, e) => {
@@ -255,14 +262,14 @@ namespace UrbanRoute.UI
             panel.Children.Add(new TextBlock { Text = "Recorridos de Grafo (BFS y DFS)", FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 15), Foreground = Brushes.White });
             
             panel.Children.Add(new TextBlock { Text = "Código de Parada de Inicio:", Margin = new Thickness(0, 0, 0, 5), Foreground = Brushes.LightGray });
-            TextBox txtInicio = new TextBox { FontSize = 14, Padding = new Thickness(5), Width = 150, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke };
+            TextBox txtInicio = new TextBox { FontSize = 14, Padding = new Thickness(5), Width = 150, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 15), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             StackPanel panelBotones = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 15) };
             Button btnBFS = new Button { Content = "Ejecutar BFS (Niveles)", Width = 150, Padding = new Thickness(8), Background = Brushes.SteelBlue, Foreground = Brushes.White, Margin = new Thickness(0, 0, 10, 0), Cursor = Cursors.Hand };
             Button btnDFS = new Button { Content = "Ejecutar DFS (Profundidad)", Width = 160, Padding = new Thickness(8), Background = Brushes.SlateGray, Foreground = Brushes.White, Cursor = Cursors.Hand };
             panelBotones.Children.Add(btnBFS); panelBotones.Children.Add(btnDFS);
 
-            TextBox txtResultados = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 250, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke };
+            TextBox txtResultados = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 250, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
 
             btnBFS.Click += (s, e) => {
                 if (algoritmos == null) return;
@@ -282,7 +289,7 @@ namespace UrbanRoute.UI
             return panel;
         }
 
-        // 3. CONEXIONES  Y UNION-FIND
+        // 3. CONEXIONES (AGREGAR RUTAS) Y UNION-FIND
         private UIElement ConstruirVistaConexiones()
         {
             StackPanel panel = new StackPanel { Margin = new Thickness(20) };
@@ -311,7 +318,7 @@ namespace UrbanRoute.UI
 
             // LISTA DE ADYACENCIA
             panel.Children.Add(new TextBlock { Text = "Lista de Adyacencia Actualizada:", FontSize = 16, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 5), Foreground = Brushes.White });
-            ListBox lstGrafo = new ListBox { FontFamily = new FontFamily("Consolas"), FontSize = 14, Height = 220, Background = Brushes.WhiteSmoke };
+            ListBox lstGrafo = new ListBox { FontFamily = new FontFamily("Consolas"), FontSize = 14, Height = 220, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             ActualizarListaAdyacencia(lstGrafo);
             panel.Children.Add(lstGrafo);
 
@@ -360,7 +367,7 @@ namespace UrbanRoute.UI
         private UIElement CrearCampoOpcion(string etiqueta, out TextBox textBox) {
             StackPanel panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,15,0) };
             panel.Children.Add(new TextBlock { Text = etiqueta, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0) });
-            textBox = new TextBox { Width = 60, Padding = new Thickness(3), Background = Brushes.WhiteSmoke };
+            textBox = new TextBox { Width = 60, Padding = new Thickness(3), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             panel.Children.Add(textBox);
             return panel;
         }
@@ -396,16 +403,16 @@ namespace UrbanRoute.UI
             
             StackPanel controles = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 15) };
             controles.Children.Add(new TextBlock { Text = "Origen:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0), Foreground = Brushes.White });
-            TextBox txtOri = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke };
+            TextBox txtOri = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             controles.Children.Add(new TextBlock { Text = "Destino:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,5,0), Foreground = Brushes.White });
-            TextBox txtDes = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke };
+            TextBox txtDes = new TextBox { Width = 80, Margin = new Thickness(0,0,15,0), Padding = new Thickness(4), Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             Button btn = new Button { Content = "Calcular Ruta Paso a Paso", Padding = new Thickness(15,5,15,5), Background = Brushes.MediumSeaGreen, Foreground = Brushes.White, Cursor = Cursors.Hand };
             controles.Children.Add(txtOri); controles.Children.Add(txtDes); controles.Children.Add(btn);
             panel.Children.Add(controles);
 
-            TextBox txtRes = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 400, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke };
+            TextBox txtRes = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 400, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontFamily = new FontFamily("Consolas"), FontSize = 14, Background = Brushes.WhiteSmoke, Foreground = Brushes.Black };
             
             btn.Click += (s, e) => {
                 if (algoritmos == null) return;
@@ -429,6 +436,9 @@ namespace UrbanRoute.UI
             return panel;
         }
 
+        // ====================================================================
+        // EVENTOS ORIGINALES DEL DASHBOARD
+        // ====================================================================
         private void Criterio_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button boton) return;
