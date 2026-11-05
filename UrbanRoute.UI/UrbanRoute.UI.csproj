@@ -8,10 +8,10 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
-<ItemGroup>
-    <!-- Evita compilar archivos de la interfaz WPF
-         dentro del proyecto original. -->
-    <Compile Remove="UrbanRoute.UI/**/*.cs" />
-</ItemGroup>
+  <ItemGroup>
+    <None Include="..\Datos\paradas.csv"
+          Link="Datos\paradas.csv"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
